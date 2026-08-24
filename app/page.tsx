@@ -41,6 +41,12 @@ const PRINT_SERVICE = "http://127.0.0.1:4210";
 const DOTS_PER_MM = 300 / 25.4;
 const SETTINGS_STORAGE_KEY = "anygold-zebra-print-settings";
 const DESIGN_STORAGE_KEY = "anygold-zebra-custom-design";
+const ANYGOLD_MARK_ROWS = [
+  "00000000", "00000000", "00000000", "00004000", "0000E000", "0000E000", "0001E000", "0001F000",
+  "0003F000", "0003F800", "0007F800", "0007FC00", "0007FC00", "000FFE00", "000FFE00", "001FFF00",
+  "001FFF00", "003FFF00", "003E7F80", "007C1F80", "007C0FC0", "00FC07C0", "00F803E0", "01F803E0",
+  "01F00000", "01F00000", "03E00000", "03E00000", "07E00000", "07C00000", "00000000", "00000000",
+];
 const CODE_TYPE_OPTIONS: Array<{
   id: CodeType;
   label: string;
@@ -86,6 +92,35 @@ function clamp(value: number, minimum: number, maximum: number) {
 
 function mmToDots(value: number) {
   return Math.round(value * DOTS_PER_MM);
+}
+
+function buildAnyGoldMarkGraphic(x: number, y: number, requestedSize: number) {
+  const size = Math.round(clamp(requestedSize, 12, 90));
+  const bytesPerRow = Math.ceil(size / 8);
+  const hexRows: string[] = [];
+
+  for (let targetY = 0; targetY < size; targetY += 1) {
+    const sourceY = Math.min(31, Math.floor((targetY * 32) / size));
+    const sourceRow = Number.parseInt(ANYGOLD_MARK_ROWS[sourceY], 16);
+    let rowHex = "";
+
+    for (let byteIndex = 0; byteIndex < bytesPerRow; byteIndex += 1) {
+      let byteValue = 0;
+      for (let bit = 0; bit < 8; bit += 1) {
+        const targetX = byteIndex * 8 + bit;
+        byteValue <<= 1;
+        if (targetX < size) {
+          const sourceX = Math.min(31, Math.floor((targetX * 32) / size));
+          byteValue |= (sourceRow >>> (31 - sourceX)) & 1;
+        }
+      }
+      rowHex += byteValue.toString(16).padStart(2, "0").toUpperCase();
+    }
+    hexRows.push(rowHex);
+  }
+
+  const totalBytes = bytesPerRow * size;
+  return `^FO${x},${y}^GFA,${totalBytes},${totalBytes},${bytesPerRow},${hexRows.join("")}^FS`;
 }
 
 function SettingControl({
@@ -177,11 +212,6 @@ function buildZpl(fields: {
   const logoHeight = Math.round(clamp(settings.logoSize, 12, 72));
   const logoWidth = Math.round(logoHeight * 0.82);
   const logoIconDiameter = Math.round(logoHeight * 1.25);
-  const logoIconStroke = Math.max(2, Math.round(logoIconDiameter * 0.08));
-  const logoIconLetterHeight = Math.round(logoIconDiameter * 0.62);
-  const logoIconLetterWidth = Math.round(logoIconLetterHeight * 0.58);
-  const logoIconLetterX = logoX + Math.round((logoIconDiameter - logoIconLetterWidth) / 2);
-  const logoIconLetterY = logoY + Math.round((logoIconDiameter - logoIconLetterHeight) / 2.3);
   const logoWordmarkX = logoX + logoIconDiameter + Math.round(logoHeight * 0.32);
   const logoWordmarkY = logoY + Math.round((logoIconDiameter - logoHeight) / 2);
   const fontHeight = Math.round(clamp(settings.textSize, 12, 60));
@@ -219,8 +249,7 @@ function buildZpl(fields: {
         : `^FO${qrX},${qrY}^BQN,2,${qrSize}^FDLA,${codeData}^FS`;
   const logoCommand = fields.showBrandLogo
     ? [
-        `^FO${logoX},${logoY}^GC${logoIconDiameter},${logoIconStroke},B^FS`,
-        `^FO${logoIconLetterX},${logoIconLetterY}^A0N,${logoIconLetterHeight},${logoIconLetterWidth}^FDA^FS`,
+        buildAnyGoldMarkGraphic(logoX, logoY, logoIconDiameter),
         `^FO${logoWordmarkX},${logoWordmarkY}^A0N,${logoHeight},${logoWidth}^FDAnyGold^FS`,
       ].join("\r\n")
     : "";
@@ -885,7 +914,7 @@ export default function Home() {
                     <div className="gold-tag-mini-preview" aria-hidden="true">
                       <div>
                         <strong className="gold-tag-logo-lockup">
-                          <span className="gold-tag-logo-mark">A</span>
+                          <img className="gold-tag-logo-mark" src="/anygold-a.png" alt="" />
                           <span className="gold-tag-wordmark">AnyGold</span>
                         </strong>
                         <span>PURITY {goldTagDetails.purity || "916"}</span>
@@ -965,7 +994,9 @@ export default function Home() {
                     checked={showBrandLogo}
                     onChange={(event) => setShowBrandLogo(event.target.checked)}
                   />
-                  <span className="print-logo-option-mark" aria-hidden="true">A</span>
+                  <span className="print-logo-option-mark" aria-hidden="true">
+                    <img src="/anygold-a.png" alt="" />
+                  </span>
                   <span>
                     <strong>Print complete AnyGold logo</strong>
                     <small>Add the A icon and AnyGold wordmark to the physical tag.</small>
@@ -1337,7 +1368,7 @@ export default function Home() {
                       onPointerUp={endPreviewDrag}
                       onPointerCancel={endPreviewDrag}
                     >
-                      <span className="print-brand-mark" aria-hidden="true">A</span>
+                      <img className="print-brand-mark" src="/anygold-a.png" alt="" aria-hidden="true" />
                       <span className="print-brand-wordmark">AnyGold</span>
                     </div>
                   )}

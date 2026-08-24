@@ -415,16 +415,9 @@ h1 {
 }
 
 .gold-tag-logo-mark {
-  align-items: center;
-  border: 1.5px solid #111;
-  border-radius: 50%;
-  display: inline-flex;
-  font-family: Arial, sans-serif;
-  font-size: 9px;
-  font-weight: 900;
   height: 18px;
-  justify-content: center;
-  line-height: 1;
+  object-fit: contain;
+  filter: brightness(0);
   width: 18px;
 }
 
@@ -731,6 +724,12 @@ h1 {
   height: 34px;
   justify-content: center;
   width: 34px;
+}
+
+.print-logo-option-mark img {
+  height: 25px;
+  object-fit: contain;
+  width: 25px;
 }
 
 .print-logo-option > span:nth-of-type(2) {
@@ -1229,16 +1228,11 @@ h1 {
 }
 
 .print-brand-mark {
-  align-items: center;
-  border: 0.1em solid currentColor;
-  border-radius: 50%;
-  box-sizing: border-box;
-  display: inline-flex;
+  display: block;
   flex: 0 0 auto;
-  font-size: 0.72em;
+  filter: brightness(0);
   height: 1.25em;
-  justify-content: center;
-  letter-spacing: 0;
+  object-fit: contain;
   width: 1.25em;
 }
 

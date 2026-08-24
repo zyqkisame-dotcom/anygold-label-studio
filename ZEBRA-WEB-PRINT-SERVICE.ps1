@@ -97,6 +97,41 @@ function Limit-Number {
     return [Math]::Min($Maximum, [Math]::Max($Minimum, $Value))
 }
 
+function New-AnyGoldMarkGraphic {
+    param([int]$X, [int]$Y, [int]$RequestedSize)
+
+    $sourceRows = @(
+        '00000000', '00000000', '00000000', '00004000', '0000E000', '0000E000', '0001E000', '0001F000',
+        '0003F000', '0003F800', '0007F800', '0007FC00', '0007FC00', '000FFE00', '000FFE00', '001FFF00',
+        '001FFF00', '003FFF00', '003E7F80', '007C1F80', '007C0FC0', '00FC07C0', '00F803E0', '01F803E0',
+        '01F00000', '01F00000', '03E00000', '03E00000', '07E00000', '07C00000', '00000000', '00000000'
+    )
+    $size = [int][Math]::Round((Limit-Number $RequestedSize 12 90))
+    $bytesPerRow = [int][Math]::Ceiling($size / 8.0)
+    $hex = [System.Text.StringBuilder]::new()
+
+    for ($targetY = 0; $targetY -lt $size; $targetY++) {
+        $sourceY = [Math]::Min(31, [int][Math]::Floor(($targetY * 32.0) / $size))
+        $sourceRow = [Convert]::ToUInt32($sourceRows[$sourceY], 16)
+
+        for ($byteIndex = 0; $byteIndex -lt $bytesPerRow; $byteIndex++) {
+            $byteValue = 0
+            for ($bit = 0; $bit -lt 8; $bit++) {
+                $targetX = ($byteIndex * 8) + $bit
+                $byteValue = $byteValue -shl 1
+                if ($targetX -lt $size) {
+                    $sourceX = [Math]::Min(31, [int][Math]::Floor(($targetX * 32.0) / $size))
+                    $byteValue = $byteValue -bor (($sourceRow -shr (31 - $sourceX)) -band 1)
+                }
+            }
+            [void]$hex.Append($byteValue.ToString('X2'))
+        }
+    }
+
+    $totalBytes = $bytesPerRow * $size
+    return "^FO$X,$Y^GFA,$totalBytes,$totalBytes,$bytesPerRow,$($hex.ToString())^FS"
+}
+
 function New-LabelZpl {
     param($Data)
 
@@ -146,11 +181,6 @@ function New-LabelZpl {
     $logoHeight = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'logoSize' 30) 12 72))
     $logoWidth = [int][Math]::Round($logoHeight * 0.82)
     $logoIconDiameter = [int][Math]::Round($logoHeight * 1.25)
-    $logoIconStroke = [int][Math]::Max(2, [Math]::Round($logoIconDiameter * 0.08))
-    $logoIconLetterHeight = [int][Math]::Round($logoIconDiameter * 0.62)
-    $logoIconLetterWidth = [int][Math]::Round($logoIconLetterHeight * 0.58)
-    $logoIconLetterX = $logoX + [int][Math]::Round(($logoIconDiameter - $logoIconLetterWidth) / 2.0)
-    $logoIconLetterY = $logoY + [int][Math]::Round(($logoIconDiameter - $logoIconLetterHeight) / 2.3)
     $logoWordmarkX = $logoX + $logoIconDiameter + [int][Math]::Round($logoHeight * 0.32)
     $logoWordmarkY = $logoY + [int][Math]::Round(($logoIconDiameter - $logoHeight) / 2.0)
     $fontHeight = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'textSize' 28) 12 60))
@@ -174,8 +204,7 @@ function New-LabelZpl {
     $zpl.Add("^PR$speed")
 
     if ([bool]$Data.showBrandLogo) {
-        $zpl.Add("^FO$logoX,$logoY^GC$logoIconDiameter,$logoIconStroke,B^FS")
-        $zpl.Add("^FO$logoIconLetterX,$logoIconLetterY^A0N,$logoIconLetterHeight,$logoIconLetterWidth^FDA^FS")
+        $zpl.Add((New-AnyGoldMarkGraphic -X $logoX -Y $logoY -RequestedSize $logoIconDiameter))
         $zpl.Add("^FO$logoWordmarkX,$logoWordmarkY^A0N,$logoHeight,$logoWidth^FDAnyGold^FS")
     }
 
