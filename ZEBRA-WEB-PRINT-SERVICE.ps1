@@ -97,6 +97,46 @@ function Limit-Number {
     return [Math]::Min($Maximum, [Math]::Max($Minimum, $Value))
 }
 
+function New-MonochromeGraphic {
+    param(
+        [int]$X,
+        [int]$Y,
+        [int]$TargetWidth,
+        [int]$TargetHeight,
+        [string[]]$SourceRows,
+        [int]$SourceWidth,
+        [int]$SourceHeight
+    )
+
+    $width = [Math]::Max(1, $TargetWidth)
+    $height = [Math]::Max(1, $TargetHeight)
+    $bytesPerRow = [int][Math]::Ceiling($width / 8.0)
+    $hex = [System.Text.StringBuilder]::new()
+
+    for ($targetY = 0; $targetY -lt $height; $targetY++) {
+        $sourceY = [Math]::Min($SourceHeight - 1, [int][Math]::Floor(($targetY * $SourceHeight) / $height))
+        $sourceRow = $SourceRows[$sourceY]
+
+        for ($byteIndex = 0; $byteIndex -lt $bytesPerRow; $byteIndex++) {
+            $byteValue = 0
+            for ($bit = 0; $bit -lt 8; $bit++) {
+                $targetX = ($byteIndex * 8) + $bit
+                $byteValue = $byteValue -shl 1
+                if ($targetX -lt $width) {
+                    $sourceX = [Math]::Min($SourceWidth - 1, [int][Math]::Floor(($targetX * $SourceWidth) / $width))
+                    $nibbleIndex = [int][Math]::Floor($sourceX / 4.0)
+                    $nibble = [Convert]::ToInt32($sourceRow.Substring($nibbleIndex, 1), 16)
+                    $byteValue = $byteValue -bor (($nibble -shr (3 - ($sourceX % 4))) -band 1)
+                }
+            }
+            [void]$hex.Append($byteValue.ToString('X2'))
+        }
+    }
+
+    $totalBytes = $bytesPerRow * $height
+    return "^FO$X,$Y^GFA,$totalBytes,$totalBytes,$bytesPerRow,$($hex.ToString())^FS"
+}
+
 function New-AnyGoldMarkGraphic {
     param([int]$X, [int]$Y, [int]$RequestedSize)
 
@@ -107,29 +147,33 @@ function New-AnyGoldMarkGraphic {
         '01F00000', '01F00000', '03E00000', '03E00000', '07E00000', '07C00000', '00000000', '00000000'
     )
     $size = [int][Math]::Round((Limit-Number $RequestedSize 12 90))
-    $bytesPerRow = [int][Math]::Ceiling($size / 8.0)
-    $hex = [System.Text.StringBuilder]::new()
+    return New-MonochromeGraphic -X $X -Y $Y -TargetWidth $size -TargetHeight $size -SourceRows $sourceRows -SourceWidth 32 -SourceHeight 32
+}
 
-    for ($targetY = 0; $targetY -lt $size; $targetY++) {
-        $sourceY = [Math]::Min(31, [int][Math]::Floor(($targetY * 32.0) / $size))
-        $sourceRow = [Convert]::ToUInt32($sourceRows[$sourceY], 16)
+function New-AnyGoldFullGraphic {
+    param([int]$X, [int]$Y, [int]$RequestedWidth)
 
-        for ($byteIndex = 0; $byteIndex -lt $bytesPerRow; $byteIndex++) {
-            $byteValue = 0
-            for ($bit = 0; $bit -lt 8; $bit++) {
-                $targetX = ($byteIndex * 8) + $bit
-                $byteValue = $byteValue -shl 1
-                if ($targetX -lt $size) {
-                    $sourceX = [Math]::Min(31, [int][Math]::Floor(($targetX * 32.0) / $size))
-                    $byteValue = $byteValue -bor (($sourceRow -shr (31 - $sourceX)) -band 1)
-                }
-            }
-            [void]$hex.Append($byteValue.ToString('X2'))
-        }
-    }
-
-    $totalBytes = $bytesPerRow * $size
-    return "^FO$X,$Y^GFA,$totalBytes,$totalBytes,$bytesPerRow,$($hex.ToString())^FS"
+    $sourceRows = @(
+        '00000000000000000000000000000000', '000400000000000007F0000000F0001F',
+        '00060000000000001FFC000001F8001F', '00060000000000007FFF000001F8001F',
+        '000F000000000000FFFF800001F8001F', '000F000000000001FFFF800001F8001F',
+        '001F800000000001FF3F000001F8001F', '001F800000000003F806000001F8001F',
+        '003FC00000000003F000000001F8001F', '003FC01FFC3F03E7E00000FF01F81FFF',
+        '007FE01FFE1F07E7C0FF81FFC1F83FFF', '007FE01FFF1F87E7C0FFC3FFE1F87FFF',
+        '00FFF01FFF1F87C7C0FF87FFF1F8FFFF', '00FFF01FBF8F8FC7C0FF87FFF1F8FE7F',
+        '01FFF01F1F8FCF87C0FF8FC1F1F9F83F', '01FFF81F0F87CF87C0FF8F81F9F9F81F',
+        '01FFF81F0F87FF87E00F8F80F9F9F01F', '03FFFC1F0F83FF07F00F8F80F9F9F01F',
+        '03E7FC1F0F83FF03F80F8FC1F9F9F81F', '07E1FE1F0F83FE01FE3F8FE3F1F8FC3F',
+        '07C0FE1F0F81FE01FFFFC7FFF1F8FFFF', '0FC03F1F0F81FE00FFFF87FFE1F87FFF',
+        '0FC03F1F0F80FC007FFF03FFC1F87FFF', '1F801F9F0F80FC001FFE01FF81F83FFF',
+        '1F801F9F0F80F80007F0007E00F00FCF', '3F0000000001F8000000000000000000',
+        '3F0000000001F8000000000000000000', '7E0000000001F0000000000000000000',
+        '7E0000000003F0000000000000000000', 'FE0000000003E0000000000000000000',
+        'FC0000000007E0000000000000000000', '00000000000000000000000000000000'
+    )
+    $width = [int][Math]::Round((Limit-Number $RequestedWidth 60 360))
+    $height = [Math]::Max(12, [int][Math]::Round($width / 4.0))
+    return New-MonochromeGraphic -X $X -Y $Y -TargetWidth $width -TargetHeight $height -SourceRows $sourceRows -SourceWidth 128 -SourceHeight 32
 }
 
 function New-LabelZpl {
@@ -183,6 +227,9 @@ function New-LabelZpl {
     $markX = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'markXmm' 5) 0 $labelWidthMm) * $dotsPerMm)
     $markY = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'markYmm' 4) 0 $labelHeightMm) * $dotsPerMm)
     $markSize = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'markSize' 38) 12 90))
+    $fullLogoX = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'fullLogoXmm' 5) 0 $labelWidthMm) * $dotsPerMm)
+    $fullLogoY = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'fullLogoYmm' 4) 0 $labelHeightMm) * $dotsPerMm)
+    $fullLogoWidth = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'fullLogoWidth' 190) 60 360))
     $fontHeight = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'textSize' 28) 12 60))
     $fontWidth = [int][Math]::Round($fontHeight * 0.86)
     $lineStep = [int][Math]::Round($fontHeight * 1.18)
@@ -204,8 +251,17 @@ function New-LabelZpl {
     $zpl.Add("^PR$speed")
 
     if ([bool]$Data.showBrandLogo) {
-        $zpl.Add((New-AnyGoldMarkGraphic -X $markX -Y $markY -RequestedSize $markSize))
-        $zpl.Add("^FO$logoX,$logoY^A0N,$logoHeight,$logoWidth^FDAnyGold^FS")
+        $brandLogoType = [string]$Data.brandLogoType
+        if ($brandLogoType -eq 'mark') {
+            $zpl.Add((New-AnyGoldMarkGraphic -X $markX -Y $markY -RequestedSize $markSize))
+        }
+        elseif ($brandLogoType -eq 'full') {
+            $zpl.Add((New-AnyGoldFullGraphic -X $fullLogoX -Y $fullLogoY -RequestedWidth $fullLogoWidth))
+        }
+        else {
+            $zpl.Add((New-AnyGoldMarkGraphic -X $markX -Y $markY -RequestedSize $markSize))
+            $zpl.Add("^FO$logoX,$logoY^A0N,$logoHeight,$logoWidth^FDAnyGold^FS")
+        }
     }
 
     $customLinePositions = @($Data.customLinePositions)

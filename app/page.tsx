@@ -14,6 +14,7 @@ type PrinterState = "checking" | "online" | "offline";
 type Notice = { tone: "success" | "error"; message: string } | null;
 type DesignMode = "standard" | "custom";
 type CodeType = "qr" | "code128" | "ean13" | "none";
+type BrandLogoType = "mark" | "full" | "split";
 type TextPosition = { xMm: number; yMm: number };
 type GoldTagDetails = { purity: string; weight: string; length: string };
 type DragTarget =
@@ -21,6 +22,7 @@ type DragTarget =
   | { type: "standardText" }
   | { type: "logoMark" }
   | { type: "logoWordmark" }
+  | { type: "fullLogo" }
   | { type: "qr" };
 type PrintSettings = {
   labelWidthMm: number;
@@ -36,6 +38,9 @@ type PrintSettings = {
   markXmm: number;
   markYmm: number;
   markSize: number;
+  fullLogoXmm: number;
+  fullLogoYmm: number;
+  fullLogoWidth: number;
   textSize: number;
   speed: number;
   darkness: number;
@@ -50,6 +55,24 @@ const ANYGOLD_MARK_ROWS = [
   "0003F000", "0003F800", "0007F800", "0007FC00", "0007FC00", "000FFE00", "000FFE00", "001FFF00",
   "001FFF00", "003FFF00", "003E7F80", "007C1F80", "007C0FC0", "00FC07C0", "00F803E0", "01F803E0",
   "01F00000", "01F00000", "03E00000", "03E00000", "07E00000", "07C00000", "00000000", "00000000",
+];
+const ANYGOLD_FULL_ROWS = [
+  "00000000000000000000000000000000", "000400000000000007F0000000F0001F",
+  "00060000000000001FFC000001F8001F", "00060000000000007FFF000001F8001F",
+  "000F000000000000FFFF800001F8001F", "000F000000000001FFFF800001F8001F",
+  "001F800000000001FF3F000001F8001F", "001F800000000003F806000001F8001F",
+  "003FC00000000003F000000001F8001F", "003FC01FFC3F03E7E00000FF01F81FFF",
+  "007FE01FFE1F07E7C0FF81FFC1F83FFF", "007FE01FFF1F87E7C0FFC3FFE1F87FFF",
+  "00FFF01FFF1F87C7C0FF87FFF1F8FFFF", "00FFF01FBF8F8FC7C0FF87FFF1F8FE7F",
+  "01FFF01F1F8FCF87C0FF8FC1F1F9F83F", "01FFF81F0F87CF87C0FF8F81F9F9F81F",
+  "01FFF81F0F87FF87E00F8F80F9F9F01F", "03FFFC1F0F83FF07F00F8F80F9F9F01F",
+  "03E7FC1F0F83FF03F80F8FC1F9F9F81F", "07E1FE1F0F83FE01FE3F8FE3F1F8FC3F",
+  "07C0FE1F0F81FE01FFFFC7FFF1F8FFFF", "0FC03F1F0F81FE00FFFF87FFE1F87FFF",
+  "0FC03F1F0F80FC007FFF03FFC1F87FFF", "1F801F9F0F80FC001FFE01FF81F83FFF",
+  "1F801F9F0F80F80007F0007E00F00FCF", "3F0000000001F8000000000000000000",
+  "3F0000000001F8000000000000000000", "7E0000000001F0000000000000000000",
+  "7E0000000003F0000000000000000000", "FE0000000003E0000000000000000000",
+  "FC0000000007E0000000000000000000", "00000000000000000000000000000000",
 ];
 const CODE_TYPE_OPTIONS: Array<{
   id: CodeType;
@@ -76,6 +99,9 @@ const DEFAULT_SETTINGS: PrintSettings = {
   markXmm: 5,
   markYmm: 4,
   markSize: 38,
+  fullLogoXmm: 5,
+  fullLogoYmm: 4,
+  fullLogoWidth: 190,
   textSize: 28,
   speed: 2,
   darkness: 10,
@@ -101,14 +127,23 @@ function mmToDots(value: number) {
   return Math.round(value * DOTS_PER_MM);
 }
 
-function buildAnyGoldMarkGraphic(x: number, y: number, requestedSize: number) {
-  const size = Math.round(clamp(requestedSize, 12, 90));
-  const bytesPerRow = Math.ceil(size / 8);
+function buildMonochromeGraphic(
+  x: number,
+  y: number,
+  requestedWidth: number,
+  requestedHeight: number,
+  sourceRows: string[],
+  sourceWidth: number,
+  sourceHeight: number,
+) {
+  const width = Math.max(1, Math.round(requestedWidth));
+  const height = Math.max(1, Math.round(requestedHeight));
+  const bytesPerRow = Math.ceil(width / 8);
   const hexRows: string[] = [];
 
-  for (let targetY = 0; targetY < size; targetY += 1) {
-    const sourceY = Math.min(31, Math.floor((targetY * 32) / size));
-    const sourceRow = Number.parseInt(ANYGOLD_MARK_ROWS[sourceY], 16);
+  for (let targetY = 0; targetY < height; targetY += 1) {
+    const sourceY = Math.min(sourceHeight - 1, Math.floor((targetY * sourceHeight) / height));
+    const sourceRow = sourceRows[sourceY];
     let rowHex = "";
 
     for (let byteIndex = 0; byteIndex < bytesPerRow; byteIndex += 1) {
@@ -116,9 +151,10 @@ function buildAnyGoldMarkGraphic(x: number, y: number, requestedSize: number) {
       for (let bit = 0; bit < 8; bit += 1) {
         const targetX = byteIndex * 8 + bit;
         byteValue <<= 1;
-        if (targetX < size) {
-          const sourceX = Math.min(31, Math.floor((targetX * 32) / size));
-          byteValue |= (sourceRow >>> (31 - sourceX)) & 1;
+        if (targetX < width) {
+          const sourceX = Math.min(sourceWidth - 1, Math.floor((targetX * sourceWidth) / width));
+          const nibble = Number.parseInt(sourceRow[Math.floor(sourceX / 4)], 16);
+          byteValue |= (nibble >>> (3 - (sourceX % 4))) & 1;
         }
       }
       rowHex += byteValue.toString(16).padStart(2, "0").toUpperCase();
@@ -126,8 +162,19 @@ function buildAnyGoldMarkGraphic(x: number, y: number, requestedSize: number) {
     hexRows.push(rowHex);
   }
 
-  const totalBytes = bytesPerRow * size;
+  const totalBytes = bytesPerRow * height;
   return `^FO${x},${y}^GFA,${totalBytes},${totalBytes},${bytesPerRow},${hexRows.join("")}^FS`;
+}
+
+function buildAnyGoldMarkGraphic(x: number, y: number, requestedSize: number) {
+  const size = Math.round(clamp(requestedSize, 12, 90));
+  return buildMonochromeGraphic(x, y, size, size, ANYGOLD_MARK_ROWS, 32, 32);
+}
+
+function buildAnyGoldFullGraphic(x: number, y: number, requestedWidth: number) {
+  const width = Math.round(clamp(requestedWidth, 60, 360));
+  const height = Math.max(12, Math.round(width / 4));
+  return buildMonochromeGraphic(x, y, width, height, ANYGOLD_FULL_ROWS, 128, 32);
 }
 
 function SettingControl({
@@ -194,6 +241,7 @@ function buildZpl(fields: {
   customText: string;
   customLinePositions: TextPosition[];
   showBrandLogo: boolean;
+  brandLogoType: BrandLogoType;
   codeType: CodeType;
   qrData: string;
   quantity: number;
@@ -218,9 +266,12 @@ function buildZpl(fields: {
   const logoY = mmToDots(clamp(settings.logoYmm, 0, settings.labelHeightMm));
   const markX = mmToDots(clamp(settings.markXmm, 0, settings.labelWidthMm));
   const markY = mmToDots(clamp(settings.markYmm, 0, settings.labelHeightMm));
+  const fullLogoX = mmToDots(clamp(settings.fullLogoXmm, 0, settings.labelWidthMm));
+  const fullLogoY = mmToDots(clamp(settings.fullLogoYmm, 0, settings.labelHeightMm));
   const logoHeight = Math.round(clamp(settings.logoSize, 12, 72));
   const logoWidth = Math.round(logoHeight * 0.82);
   const markSize = Math.round(clamp(settings.markSize, 12, 90));
+  const fullLogoWidth = Math.round(clamp(settings.fullLogoWidth, 60, 360));
   const fontHeight = Math.round(clamp(settings.textSize, 12, 60));
   const fontWidth = Math.round(fontHeight * 0.86);
   const lineStep = Math.round(fontHeight * 1.18);
@@ -254,12 +305,16 @@ function buildZpl(fields: {
       : fields.codeType === "ean13"
         ? `^FO${qrX},${qrY}^BY${moduleWidth},2,${barcodeHeight}^BEN,${barcodeHeight},Y,N^FD${codeData}^FS`
         : `^FO${qrX},${qrY}^BQN,2,${qrSize}^FDLA,${codeData}^FS`;
-  const logoCommand = fields.showBrandLogo
-    ? [
-        buildAnyGoldMarkGraphic(markX, markY, markSize),
-        `^FO${logoX},${logoY}^A0N,${logoHeight},${logoWidth}^FDAnyGold^FS`,
-      ].join("\r\n")
-    : "";
+  const logoCommand = !fields.showBrandLogo
+    ? ""
+    : fields.brandLogoType === "mark"
+      ? buildAnyGoldMarkGraphic(markX, markY, markSize)
+      : fields.brandLogoType === "full"
+        ? buildAnyGoldFullGraphic(fullLogoX, fullLogoY, fullLogoWidth)
+        : [
+            buildAnyGoldMarkGraphic(markX, markY, markSize),
+            `^FO${logoX},${logoY}^A0N,${logoHeight},${logoWidth}^FDAnyGold^FS`,
+          ].join("\r\n");
 
   return [
     `~SD${darkness.toString().padStart(2, "0")}`,
@@ -297,6 +352,7 @@ export default function Home() {
   const [customQr, setCustomQr] = useState("CUSTOM-001");
   const [customCodeType, setCustomCodeType] = useState<CodeType>("qr");
   const [showBrandLogo, setShowBrandLogo] = useState(false);
+  const [brandLogoType, setBrandLogoType] = useState<BrandLogoType>("split");
   const [goldTagDetails, setGoldTagDetails] = useState<GoldTagDetails>({
     purity: "916",
     weight: "20.00",
@@ -494,6 +550,9 @@ export default function Home() {
         if (typeof design.customText === "string") setCustomText(design.customText);
         if (typeof design.customQr === "string") setCustomQr(design.customQr);
         if (typeof design.showBrandLogo === "boolean") setShowBrandLogo(design.showBrandLogo);
+        if (["mark", "full", "split"].includes(design.brandLogoType)) {
+          setBrandLogoType(design.brandLogoType);
+        }
         if (Array.isArray(design.customLinePositions)) {
           setCustomLinePositions(
             DEFAULT_CUSTOM_LINE_POSITIONS.map((fallback, index) => {
@@ -529,9 +588,10 @@ export default function Home() {
         customCodeType,
         customLinePositions,
         showBrandLogo,
+        brandLogoType,
       }),
     );
-  }, [customCodeType, customLinePositions, customQr, customText, designMode, designStorageReady, showBrandLogo]);
+  }, [brandLogoType, customCodeType, customLinePositions, customQr, customText, designMode, designStorageReady, showBrandLogo]);
 
   useEffect(() => {
     if (designMode !== "custom") return;
@@ -575,6 +635,7 @@ export default function Home() {
     setCustomLinePositions(GOLD_TAG_LINE_POSITIONS);
     setSelectedLineIndex(0);
     setShowBrandLogo(true);
+    setBrandLogoType("full");
     setCustomCodeType("qr");
     setCustomQr(`ANYGOLD-${purity}-${weight}G-${length}CM`);
     setSettings((current) => ({
@@ -588,6 +649,9 @@ export default function Home() {
       markXmm: 5,
       markYmm: 4,
       markSize: 38,
+      fullLogoXmm: 5,
+      fullLogoYmm: 4,
+      fullLogoWidth: 190,
       qrXmm: 8,
       qrYmm: 20.5,
       qrSize: 2,
@@ -609,9 +673,12 @@ export default function Home() {
       next.logoYmm = clamp(next.logoYmm, 0, next.labelHeightMm);
       next.markXmm = clamp(next.markXmm, 0, next.labelWidthMm);
       next.markYmm = clamp(next.markYmm, 0, next.labelHeightMm);
+      next.fullLogoXmm = clamp(next.fullLogoXmm, 0, next.labelWidthMm);
+      next.fullLogoYmm = clamp(next.fullLogoYmm, 0, next.labelHeightMm);
       next.qrSize = Math.round(clamp(next.qrSize, 2, 10));
       next.logoSize = Math.round(clamp(next.logoSize, 12, 72));
       next.markSize = Math.round(clamp(next.markSize, 12, 90));
+      next.fullLogoWidth = Math.round(clamp(next.fullLogoWidth, 60, 360));
       next.textSize = Math.round(clamp(next.textSize, 12, 60));
       next.speed = Math.round(clamp(next.speed, 2, 4));
       next.darkness = Math.round(clamp(next.darkness, 0, 30));
@@ -651,8 +718,10 @@ export default function Home() {
         : target.type === "logoMark"
           ? settings.markXmm
           : target.type === "logoWordmark"
-          ? settings.logoXmm
-          : settings.qrXmm;
+            ? settings.logoXmm
+            : target.type === "fullLogo"
+              ? settings.fullLogoXmm
+              : settings.qrXmm;
     const currentYmm = target.type === "text"
       ? textPosition?.yMm ?? 0
       : target.type === "standardText"
@@ -660,8 +729,10 @@ export default function Home() {
         : target.type === "logoMark"
           ? settings.markYmm
           : target.type === "logoWordmark"
-          ? settings.logoYmm
-          : settings.qrYmm;
+            ? settings.logoYmm
+            : target.type === "fullLogo"
+              ? settings.fullLogoYmm
+              : settings.qrYmm;
     if (target.type === "text") setSelectedLineIndex(target.index);
     dragRef.current = {
       target,
@@ -711,6 +782,12 @@ export default function Home() {
         logoXmm: Math.round(xMm * 2) / 2,
         logoYmm: Math.round(yMm * 2) / 2,
       }));
+    } else if (drag.target.type === "fullLogo") {
+      setSettings((current) => ({
+        ...current,
+        fullLogoXmm: Math.round(xMm * 2) / 2,
+        fullLogoYmm: Math.round(yMm * 2) / 2,
+      }));
     } else {
       setSettings((current) => ({
         ...current,
@@ -736,6 +813,7 @@ export default function Home() {
     customText,
     customLinePositions,
     showBrandLogo: designMode === "custom" && showBrandLogo,
+    brandLogoType,
     codeType,
     qrData,
     quantity,
@@ -757,6 +835,9 @@ export default function Home() {
     "--logo-mark-left": `${(settings.markXmm / settings.labelWidthMm) * 100}%`,
     "--logo-mark-top": `${(settings.markYmm / settings.labelHeightMm) * 100}%`,
     "--logo-mark-size": `${(settings.markSize / labelWidthDots) * 100}cqw`,
+    "--full-logo-left": `${(settings.fullLogoXmm / settings.labelWidthMm) * 100}%`,
+    "--full-logo-top": `${(settings.fullLogoYmm / settings.labelHeightMm) * 100}%`,
+    "--full-logo-width": `${(settings.fullLogoWidth / labelWidthDots) * 100}cqw`,
     "--qr-left": `${(settings.qrXmm / settings.labelWidthMm) * 100}%`,
     "--qr-top": `${(settings.qrYmm / settings.labelHeightMm) * 100}%`,
     "--qr-width": `${codePreviewWidth}%`,
@@ -818,6 +899,7 @@ export default function Home() {
       setCustomQr("CUSTOM-001");
       setCustomCodeType("qr");
       setShowBrandLogo(false);
+      setBrandLogoType("split");
       setNotice(null);
       return;
     }
@@ -983,10 +1065,7 @@ export default function Home() {
                   <div className="gold-template-body">
                     <div className="gold-tag-mini-preview" aria-hidden="true">
                       <div>
-                        <strong className="gold-tag-logo-lockup">
-                          <img className="gold-tag-logo-mark" src="/anygold-a.png" alt="" />
-                          <span className="gold-tag-wordmark">AnyGold</span>
-                        </strong>
+                        <img className="gold-tag-full-logo" src="/anygold-full-logo.png" alt="" />
                         <span>PURITY {goldTagDetails.purity || "916"}</span>
                         <span>WEIGHT {goldTagDetails.weight || "20.00"}G</span>
                         <span>LENGTH {goldTagDetails.length || "10"}CM</span>
@@ -1065,14 +1144,62 @@ export default function Home() {
                     onChange={(event) => setShowBrandLogo(event.target.checked)}
                   />
                   <span className="print-logo-option-mark" aria-hidden="true">
-                    <img src="/anygold-a.png" alt="" />
+                    <img src="/anygold-a-choice.png" alt="" />
                   </span>
                   <span>
-                    <strong>Print complete AnyGold logo</strong>
-                    <small>Move and resize the A logo and AnyGold text separately.</small>
+                    <strong>Print AnyGold branding</strong>
+                    <small>Choose the exact logo style to print on this tag.</small>
                   </span>
                   <span className="print-logo-option-state">{showBrandLogo ? "On" : "Off"}</span>
                 </label>
+
+                {showBrandLogo && (
+                  <section className="brand-logo-selector" aria-labelledby="brand-logo-title">
+                    <div className="brand-logo-heading">
+                      <strong id="brand-logo-title">Choose logo</strong>
+                      <small>Select one style for this tag.</small>
+                    </div>
+                    <div className="brand-logo-options" role="radiogroup" aria-label="AnyGold logo style">
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={brandLogoType === "mark"}
+                        className={brandLogoType === "mark" ? "active" : ""}
+                        onClick={() => setBrandLogoType("mark")}
+                      >
+                        <span className="brand-choice-preview mark" aria-hidden="true">
+                          <img src="/anygold-a-choice.png" alt="" />
+                        </span>
+                        <span><strong>A Mark</strong><small>Symbol only</small></span>
+                      </button>
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={brandLogoType === "full"}
+                        className={brandLogoType === "full" ? "active" : ""}
+                        onClick={() => setBrandLogoType("full")}
+                      >
+                        <span className="brand-choice-preview full" aria-hidden="true">
+                          <img src="/anygold-full-logo.png" alt="" />
+                        </span>
+                        <span><strong>Full AnyGold</strong><small>Original full logo</small></span>
+                      </button>
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={brandLogoType === "split"}
+                        className={brandLogoType === "split" ? "active" : ""}
+                        onClick={() => setBrandLogoType("split")}
+                      >
+                        <span className="brand-choice-preview split" aria-hidden="true">
+                          <img src="/anygold-a-choice.png" alt="" />
+                          <b>AnyGold</b>
+                        </span>
+                        <span><strong>Separate</strong><small>Adjust both parts</small></span>
+                      </button>
+                    </div>
+                  </section>
+                )}
 
                 <div className="code-type-selector notranslate" translate="no">
                   <div className="code-type-heading">
@@ -1261,7 +1388,7 @@ export default function Home() {
                   />
                 </fieldset>
 
-                {designMode === "custom" && showBrandLogo && (
+                {designMode === "custom" && showBrandLogo && (brandLogoType === "mark" || brandLogoType === "split") && (
                   <fieldset className="settings-group logo-settings-group">
                     <legend>A logo</legend>
                     <SettingControl
@@ -1297,7 +1424,7 @@ export default function Home() {
                   </fieldset>
                 )}
 
-                {designMode === "custom" && showBrandLogo && (
+                {designMode === "custom" && showBrandLogo && brandLogoType === "split" && (
                   <fieldset className="settings-group logo-settings-group">
                     <legend>AnyGold text</legend>
                     <SettingControl
@@ -1329,6 +1456,42 @@ export default function Home() {
                       step={1}
                       unit="dot"
                       onChange={(value) => updateSetting("logoSize", value)}
+                    />
+                  </fieldset>
+                )}
+
+                {designMode === "custom" && showBrandLogo && brandLogoType === "full" && (
+                  <fieldset className="settings-group logo-settings-group full-logo-settings-group">
+                    <legend>Full AnyGold logo</legend>
+                    <SettingControl
+                      id="full-logo-x"
+                      label="Left ↔ right"
+                      value={settings.fullLogoXmm}
+                      minimum={0}
+                      maximum={settings.labelWidthMm}
+                      step={0.5}
+                      unit="mm"
+                      onChange={(value) => updateSetting("fullLogoXmm", value)}
+                    />
+                    <SettingControl
+                      id="full-logo-y"
+                      label="Up ↕ down"
+                      value={settings.fullLogoYmm}
+                      minimum={0}
+                      maximum={settings.labelHeightMm}
+                      step={0.5}
+                      unit="mm"
+                      onChange={(value) => updateSetting("fullLogoYmm", value)}
+                    />
+                    <SettingControl
+                      id="full-logo-width"
+                      label="Full logo size"
+                      value={settings.fullLogoWidth}
+                      minimum={60}
+                      maximum={360}
+                      step={5}
+                      unit="dot"
+                      onChange={(value) => updateSetting("fullLogoWidth", value)}
                     />
                   </fieldset>
                 )}
@@ -1462,7 +1625,7 @@ export default function Home() {
                   {designMode === "custom" ? "Drag each line, A logo, AnyGold text or code" : "Drag text or code to move"}
                 </div>
                 <div className="label-paper" style={labelPreviewStyle} ref={labelPaperRef}>
-                  {designMode === "custom" && showBrandLogo && (
+                  {designMode === "custom" && showBrandLogo && (brandLogoType === "mark" || brandLogoType === "split") && (
                     <div
                       className="print-brand-mark draggable-item"
                       role="button"
@@ -1474,10 +1637,10 @@ export default function Home() {
                       onPointerUp={endPreviewDrag}
                       onPointerCancel={endPreviewDrag}
                     >
-                      <img src="/anygold-a.png" alt="" aria-hidden="true" />
+                      <img src="/anygold-a-choice.png" alt="" aria-hidden="true" />
                     </div>
                   )}
-                  {designMode === "custom" && showBrandLogo && (
+                  {designMode === "custom" && showBrandLogo && brandLogoType === "split" && (
                     <div
                       className="print-brand-wordmark draggable-item"
                       role="button"
@@ -1490,6 +1653,21 @@ export default function Home() {
                       onPointerCancel={endPreviewDrag}
                     >
                       AnyGold
+                    </div>
+                  )}
+                  {designMode === "custom" && showBrandLogo && brandLogoType === "full" && (
+                    <div
+                      className="print-full-brand-logo draggable-item"
+                      role="button"
+                      tabIndex={0}
+                      aria-label="Move the full AnyGold logo"
+                      title="Drag to reposition the full AnyGold logo"
+                      onPointerDown={(event) => startPreviewDrag({ type: "fullLogo" }, event)}
+                      onPointerMove={movePreviewDrag}
+                      onPointerUp={endPreviewDrag}
+                      onPointerCancel={endPreviewDrag}
+                    >
+                      <img src="/anygold-full-logo.png" alt="" aria-hidden="true" />
                     </div>
                   )}
                   {designMode === "custom" ? (
