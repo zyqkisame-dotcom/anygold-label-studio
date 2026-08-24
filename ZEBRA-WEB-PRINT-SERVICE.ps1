@@ -143,8 +143,16 @@ function New-LabelZpl {
     $qrY = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'qrYmm' 7) 0 $labelHeightMm) * $dotsPerMm)
     $logoX = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'logoXmm' 5) 0 $labelWidthMm) * $dotsPerMm)
     $logoY = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'logoYmm' 4) 0 $labelHeightMm) * $dotsPerMm)
-    $logoHeight = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'logoSize' 30) 18 60))
+    $logoHeight = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'logoSize' 30) 12 72))
     $logoWidth = [int][Math]::Round($logoHeight * 0.82)
+    $logoIconDiameter = [int][Math]::Round($logoHeight * 1.25)
+    $logoIconStroke = [int][Math]::Max(2, [Math]::Round($logoIconDiameter * 0.08))
+    $logoIconLetterHeight = [int][Math]::Round($logoIconDiameter * 0.62)
+    $logoIconLetterWidth = [int][Math]::Round($logoIconLetterHeight * 0.58)
+    $logoIconLetterX = $logoX + [int][Math]::Round(($logoIconDiameter - $logoIconLetterWidth) / 2.0)
+    $logoIconLetterY = $logoY + [int][Math]::Round(($logoIconDiameter - $logoIconLetterHeight) / 2.3)
+    $logoWordmarkX = $logoX + $logoIconDiameter + [int][Math]::Round($logoHeight * 0.32)
+    $logoWordmarkY = $logoY + [int][Math]::Round(($logoIconDiameter - $logoHeight) / 2.0)
     $fontHeight = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'textSize' 28) 12 60))
     $fontWidth = [int][Math]::Round($fontHeight * 0.86)
     $lineStep = [int][Math]::Round($fontHeight * 1.18)
@@ -166,7 +174,9 @@ function New-LabelZpl {
     $zpl.Add("^PR$speed")
 
     if ([bool]$Data.showBrandLogo) {
-        $zpl.Add("^FO$logoX,$logoY^A0N,$logoHeight,$logoWidth^FDAnyGold^FS")
+        $zpl.Add("^FO$logoX,$logoY^GC$logoIconDiameter,$logoIconStroke,B^FS")
+        $zpl.Add("^FO$logoIconLetterX,$logoIconLetterY^A0N,$logoIconLetterHeight,$logoIconLetterWidth^FDA^FS")
+        $zpl.Add("^FO$logoWordmarkX,$logoWordmarkY^A0N,$logoHeight,$logoWidth^FDAnyGold^FS")
     }
 
     $customLinePositions = @($Data.customLinePositions)

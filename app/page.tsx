@@ -174,8 +174,16 @@ function buildZpl(fields: {
   const qrY = mmToDots(clamp(settings.qrYmm, 0, settings.labelHeightMm));
   const logoX = mmToDots(clamp(settings.logoXmm, 0, settings.labelWidthMm));
   const logoY = mmToDots(clamp(settings.logoYmm, 0, settings.labelHeightMm));
-  const logoHeight = Math.round(clamp(settings.logoSize, 18, 60));
+  const logoHeight = Math.round(clamp(settings.logoSize, 12, 72));
   const logoWidth = Math.round(logoHeight * 0.82);
+  const logoIconDiameter = Math.round(logoHeight * 1.25);
+  const logoIconStroke = Math.max(2, Math.round(logoIconDiameter * 0.08));
+  const logoIconLetterHeight = Math.round(logoIconDiameter * 0.62);
+  const logoIconLetterWidth = Math.round(logoIconLetterHeight * 0.58);
+  const logoIconLetterX = logoX + Math.round((logoIconDiameter - logoIconLetterWidth) / 2);
+  const logoIconLetterY = logoY + Math.round((logoIconDiameter - logoIconLetterHeight) / 2.3);
+  const logoWordmarkX = logoX + logoIconDiameter + Math.round(logoHeight * 0.32);
+  const logoWordmarkY = logoY + Math.round((logoIconDiameter - logoHeight) / 2);
   const fontHeight = Math.round(clamp(settings.textSize, 12, 60));
   const fontWidth = Math.round(fontHeight * 0.86);
   const lineStep = Math.round(fontHeight * 1.18);
@@ -210,7 +218,11 @@ function buildZpl(fields: {
         ? `^FO${qrX},${qrY}^BY${moduleWidth},2,${barcodeHeight}^BEN,${barcodeHeight},Y,N^FD${codeData}^FS`
         : `^FO${qrX},${qrY}^BQN,2,${qrSize}^FDLA,${codeData}^FS`;
   const logoCommand = fields.showBrandLogo
-    ? `^FO${logoX},${logoY}^A0N,${logoHeight},${logoWidth}^FDAnyGold^FS`
+    ? [
+        `^FO${logoX},${logoY}^GC${logoIconDiameter},${logoIconStroke},B^FS`,
+        `^FO${logoIconLetterX},${logoIconLetterY}^A0N,${logoIconLetterHeight},${logoIconLetterWidth}^FDA^FS`,
+        `^FO${logoWordmarkX},${logoWordmarkY}^A0N,${logoHeight},${logoWidth}^FDAnyGold^FS`,
+      ].join("\r\n")
     : "";
 
   return [
@@ -513,7 +525,7 @@ export default function Home() {
       next.logoXmm = clamp(next.logoXmm, 0, next.labelWidthMm);
       next.logoYmm = clamp(next.logoYmm, 0, next.labelHeightMm);
       next.qrSize = Math.round(clamp(next.qrSize, 2, 10));
-      next.logoSize = Math.round(clamp(next.logoSize, 18, 60));
+      next.logoSize = Math.round(clamp(next.logoSize, 12, 72));
       next.textSize = Math.round(clamp(next.textSize, 12, 60));
       next.speed = Math.round(clamp(next.speed, 2, 4));
       next.darkness = Math.round(clamp(next.darkness, 0, 30));
@@ -872,7 +884,10 @@ export default function Home() {
                   <div className="gold-template-body">
                     <div className="gold-tag-mini-preview" aria-hidden="true">
                       <div>
-                        <strong className="gold-tag-wordmark">AnyGold</strong>
+                        <strong className="gold-tag-logo-lockup">
+                          <span className="gold-tag-logo-mark">A</span>
+                          <span className="gold-tag-wordmark">AnyGold</span>
+                        </strong>
                         <span>PURITY {goldTagDetails.purity || "916"}</span>
                         <span>WEIGHT {goldTagDetails.weight || "20.00"}G</span>
                         <span>LENGTH {goldTagDetails.length || "10"}CM</span>
@@ -950,10 +965,10 @@ export default function Home() {
                     checked={showBrandLogo}
                     onChange={(event) => setShowBrandLogo(event.target.checked)}
                   />
-                  <span className="print-logo-option-mark" aria-hidden="true">AG</span>
+                  <span className="print-logo-option-mark" aria-hidden="true">A</span>
                   <span>
-                    <strong>Print AnyGold logo</strong>
-                    <small>Add the AnyGold wordmark to the physical tag.</small>
+                    <strong>Print complete AnyGold logo</strong>
+                    <small>Add the A icon and AnyGold wordmark to the physical tag.</small>
                   </span>
                   <span className="print-logo-option-state">{showBrandLogo ? "On" : "Off"}</span>
                 </label>
@@ -1170,10 +1185,10 @@ export default function Home() {
                     />
                     <SettingControl
                       id="logo-size"
-                      label="Logo size"
+                      label="Complete logo size"
                       value={settings.logoSize}
-                      minimum={18}
-                      maximum={60}
+                      minimum={12}
+                      maximum={72}
                       step={1}
                       unit="dot"
                       onChange={(value) => updateSetting("logoSize", value)}
@@ -1315,14 +1330,15 @@ export default function Home() {
                       className="print-brand-logo draggable-item"
                       role="button"
                       tabIndex={0}
-                      aria-label="Move AnyGold logo"
-                      title="Drag to reposition the AnyGold logo"
+                      aria-label="Move the complete AnyGold logo"
+                      title="Drag to reposition the A icon and AnyGold wordmark"
                       onPointerDown={(event) => startPreviewDrag({ type: "logo" }, event)}
                       onPointerMove={movePreviewDrag}
                       onPointerUp={endPreviewDrag}
                       onPointerCancel={endPreviewDrag}
                     >
-                      AnyGold
+                      <span className="print-brand-mark" aria-hidden="true">A</span>
+                      <span className="print-brand-wordmark">AnyGold</span>
                     </div>
                   )}
                   {designMode === "custom" ? (

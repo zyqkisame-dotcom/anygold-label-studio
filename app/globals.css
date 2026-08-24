@@ -407,12 +407,32 @@ h1 {
   font-size: 12px;
 }
 
+.gold-tag-logo-lockup {
+  align-items: center;
+  display: flex;
+  gap: 5px;
+  margin-bottom: 2px;
+}
+
+.gold-tag-logo-mark {
+  align-items: center;
+  border: 1.5px solid #111;
+  border-radius: 50%;
+  display: inline-flex;
+  font-family: Arial, sans-serif;
+  font-size: 9px;
+  font-weight: 900;
+  height: 18px;
+  justify-content: center;
+  line-height: 1;
+  width: 18px;
+}
+
 .gold-tag-mini-preview .gold-tag-wordmark {
   font-family: Arial, sans-serif;
   font-size: 15px;
   font-weight: 900;
   letter-spacing: -0.04em;
-  margin-bottom: 2px;
   text-transform: none;
 }
 
@@ -1191,19 +1211,40 @@ h1 {
 }
 
 .print-brand-logo {
+  align-items: center;
   color: #000;
   cursor: grab;
+  display: flex;
   font-family: Arial, sans-serif;
   font-size: max(9px, var(--logo-size));
   font-weight: 900;
+  gap: 0.32em;
   left: var(--logo-left);
-  letter-spacing: -0.05em;
   line-height: 1;
   position: absolute;
   text-transform: none;
   top: var(--logo-top);
   white-space: nowrap;
   z-index: 3;
+}
+
+.print-brand-mark {
+  align-items: center;
+  border: 0.1em solid currentColor;
+  border-radius: 50%;
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 0.72em;
+  height: 1.25em;
+  justify-content: center;
+  letter-spacing: 0;
+  width: 1.25em;
+}
+
+.print-brand-wordmark {
+  letter-spacing: -0.05em;
+  white-space: nowrap;
 }
 
 .label-copy.custom-line {
