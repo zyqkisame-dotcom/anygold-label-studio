@@ -188,11 +188,11 @@ function buildAnyGoldFullGraphic(x: number, y: number, requestedWidth: number) {
   const textX = x + Math.round(height * 0.88);
   const textHeight = Math.max(12, Math.round(height * 0.78));
   const textY = y + Math.round((height - textHeight) / 2);
-  const textWidth = Math.max(7, Math.round((width - (textX - x)) / 7));
+  const textWidth = Math.max(7, Math.round((width - (textX - x)) / 6));
 
   return [
     buildAnyGoldMarkGraphic(x, y, markSize),
-    `^FO${textX},${textY}^A0N,${textHeight},${textWidth}^FDAnyGold^FS`,
+    `^FO${textX},${textY}^A0N,${textHeight},${textWidth}^FDnyGold^FS`,
   ].join("\r\n");
 }
 

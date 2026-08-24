@@ -170,9 +170,9 @@ function New-AnyGoldFullGraphic {
     $textX = $X + [int][Math]::Round($height * 0.88)
     $textHeight = [Math]::Max(12, [int][Math]::Round($height * 0.78))
     $textY = $Y + [int][Math]::Round(($height - $textHeight) / 2.0)
-    $textWidth = [Math]::Max(7, [int][Math]::Round(($width - ($textX - $X)) / 7.0))
+    $textWidth = [Math]::Max(7, [int][Math]::Round(($width - ($textX - $X)) / 6.0))
     $markGraphic = New-AnyGoldMarkGraphic -X $X -Y $Y -RequestedSize $markSize
-    return "$markGraphic`r`n^FO$textX,$textY^A0N,$textHeight,$textWidth^FDAnyGold^FS"
+    return "$markGraphic`r`n^FO$textX,$textY^A0N,$textHeight,$textWidth^FDnyGold^FS"
 }
 
 function New-LabelZpl {
