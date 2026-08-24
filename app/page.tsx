@@ -50,30 +50,11 @@ const PRINT_SERVICE = "http://127.0.0.1:4210";
 const DOTS_PER_MM = 300 / 25.4;
 const SETTINGS_STORAGE_KEY = "anygold-zebra-print-settings";
 const DESIGN_STORAGE_KEY = "anygold-zebra-custom-design";
-const ANYGOLD_MARK_ROWS = [
-  "00000000", "00000000", "00000000", "00004000", "0000E000", "0000E000", "0001E000", "0001F000",
-  "0003F000", "0003F800", "0007F800", "0007FC00", "0007FC00", "000FFE00", "000FFE00", "001FFF00",
-  "001FFF00", "003FFF00", "003E7F80", "007C1F80", "007C0FC0", "00FC07C0", "00F803E0", "01F803E0",
-  "01F00000", "01F00000", "03E00000", "03E00000", "07E00000", "07C00000", "00000000", "00000000",
-];
-const ANYGOLD_FULL_ROWS = [
-  "00000000000000000000000000000000", "000400000000000007F0000000F0001F",
-  "00060000000000001FFC000001F8001F", "00060000000000007FFF000001F8001F",
-  "000F000000000000FFFF800001F8001F", "000F000000000001FFFF800001F8001F",
-  "001F800000000001FF3F000001F8001F", "001F800000000003F806000001F8001F",
-  "003FC00000000003F000000001F8001F", "003FC01FFC3F03E7E00000FF01F81FFF",
-  "007FE01FFE1F07E7C0FF81FFC1F83FFF", "007FE01FFF1F87E7C0FFC3FFE1F87FFF",
-  "00FFF01FFF1F87C7C0FF87FFF1F8FFFF", "00FFF01FBF8F8FC7C0FF87FFF1F8FE7F",
-  "01FFF01F1F8FCF87C0FF8FC1F1F9F83F", "01FFF81F0F87CF87C0FF8F81F9F9F81F",
-  "01FFF81F0F87FF87E00F8F80F9F9F01F", "03FFFC1F0F83FF07F00F8F80F9F9F01F",
-  "03E7FC1F0F83FF03F80F8FC1F9F9F81F", "07E1FE1F0F83FE01FE3F8FE3F1F8FC3F",
-  "07C0FE1F0F81FE01FFFFC7FFF1F8FFFF", "0FC03F1F0F81FE00FFFF87FFE1F87FFF",
-  "0FC03F1F0F80FC007FFF03FFC1F87FFF", "1F801F9F0F80FC001FFE01FF81F83FFF",
-  "1F801F9F0F80F80007F0007E00F00FCF", "3F0000000001F8000000000000000000",
-  "3F0000000001F8000000000000000000", "7E0000000001F0000000000000000000",
-  "7E0000000003F0000000000000000000", "FE0000000003E0000000000000000000",
-  "FC0000000007E0000000000000000000", "00000000000000000000000000000000",
-];
+const ANYGOLD_MARK_SOURCE_WIDTH = 128;
+const ANYGOLD_MARK_SOURCE_HEIGHT = 128;
+const ANYGOLD_MARK_BASE64 =
+  "AAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABgAAAAAAAAAAAAAAAAAAAA4AAAAAAAAAAAAAAAAAAAAPAAAAAAAAAAAAAAAAAAAADwAAAAAAAAAAAAAAAAAAAB+AAAAAAAAAAAAAAAAAAAAfgAAAAAAAAAAAAAAAAAAAP8AAAAAAAAAAAAAAAAAAAD/AAAAAAAAAAAAAAAAAAAB/4AAAAAAAAAAAAAAAAAAAf+AAAAAAAAAAAAAAAAAAAP/gAAAAAAAAAAAAAAAAAAD/8AAAAAAAAAAAAAAAAAAB//AAAAAAAAAAAAAAAAAAAf/4AAAAAAAAAAAAAAAAAAP/+AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAf//gAAAAAAAAAAAAAAAAAH//4AAAAAAAAAAAAAAAAAD///AAAAAAAAAAAAAAAAAA///wAAAAAAAAAAAAAAAAAf//+AAAAAAAAAAAAAAAAAH///gAAAAAAAAAAAAAAAAD///4AAAAAAAAAAAAAAAAA////AAAAAAAAAAAAAAAAAf///wAAAAAAAAAAAAAAAAH///+AAAAAAAAAAAAAAAAD////gAAAAAAAAAAAAAAAA////8AAAAAAAAAAAAAAAAP////AAAAAAAAAAAAAAAAH////4AAAAAAAAAAAAAAAB////+AAAAAAAAAAAAAAAA/////wAAAAAAAAAAAAAAAP////8AAAAAAAAAAAAAAAH/////gAAAAAAAAAAAAAAB/////4AAAAAAAAAAAAAAA/////+AAAAAAAAAAAAAAAP/////wAAAAAAAAAAAAAAH/////8AAAAAAAAAAAAAAB//////gAAAAAAAAAAAAAAf/////4AAAAAAAAAAAAAAP//////AAAAAAAAAAAAAAD//////wAAAAAAAAAAAAAB//////+AAAAAAAAAAAAAAf//////gAAAAAAAAAAAAAP//////8AAAAAAAAAAAAAD///////AAAAAAAAAAAAAB///////wAAAAAAAAAAAAAf//////+AAAAAAAAAAAAAP///////gAAAAAAAAAAAAD///////8AAAAAAAAAAAAB////////AAAAAAAAAAAAAf///////4AAAAAAAAAAAAH///////+AAAAAAAAAAAAD////////wAAAAAAAAAAAA////////8AAAAAAAAAAAAf////////gAAAAAAAAAAAH////////4AAAAAAAAAAAD/////////AAAAAAAAAAAA/////////wAAAAAAAAAAAf////////8AAAAAAAAAAAH/////////gAAAAAAAAAAD/////////4AAAAAAAAAAA//////////AAAAAAAAAAAf/////////wAAAAAAAAAAH/////////+AAAAAAAAAAB//////////gAAAAAAAAAA//////////8AAAAAAAAAAP//////////AAAAAAAAAAH//////////4AAAAAAAAAB///5//////+AAAAAAAAAA///+H//////wAAAAAAAAAP///gf/////8AAAAAAAAAH///wD//////AAAAAAAAAB///8AP/////4AAAAAAAAA///+AA/////+AAAAAAAAAP///gAD/////wAAAAAAAAH///wAAf////8AAAAAAAAB///8AAB/////gAAAAAAAAf///AAAH////4AAAAAAAAP///gAAAf////AAAAAAAAD///4AAAD////wAAAAAAAB///8AAAAP///+AAAAAAAAf///AAAAA////gAAAAAAAP///gAAAAH///8AAAAAAAD///4AAAAAf///AAAAAAAB///+AAAAAH///wAAAAAAAf///AAAAAA///+AAAAAAAP///wAAAAAP///gAAAAAAD///4AAAAAD///8AAAAAAA///+AAAAAAf///AAAAAAAf///gAAAAAH///4AAAAAAH///wAAAAAA///+AAAAAAD///8AAAAAAP///wAAAAAA///+AAAAAAD///8AAAAAAf///gAAAAAAf///gAAAAAH///wAAAAAAH///4AAAAAD///8AAAAAAA////AAAAAA////AAAAAAAP///wAAAAAf///gAAAAAAB///8AAAAAH///4AAAAAAAAAAAAAAAAD///8AAAAAAAAAAAAAAAAA////AAAAAAAAAAAAAAAAAP///gAAAAAAAAAAAAAAAAH///4AAAAAAAAAAAAAAAAB///+AAAAAAAAAAAAAAAAA////AAAAAAAAAAAAAAAAAP///wAAAAAAAAAAAAAAAAH///4AAAAAAAAAAAAAAAAB///+AAAAAAAAAAAAAAAAA////gAAAAAAAAAAAAAAAAP///wAAAAAAAAAAAAAAAAH///8AAAAAAAAAAAAAAAAB///+AAAAAAAAAAAAAAAAA////gAAAAAAAAAAAAAAAAP///wAAAAAAAAAAAAAAAAD///8AAAAAAAAAAAAAAAAB////AAAAAAAAAAAAAAAAAf///gAAAAAAAAAAAAAAAAP///4AAAAAAAAAAAAAAAAD///8AAAAAAAAAAAAAAAAB////AAAAAAAAAAAAAAAAAf///wAAAAAAAAAAAAAAAAP///4AAAAAAAAAAAAAAAAD///+AAAAAAAAAAAAAAAAB////AAAAAAAAAAAAAAAAAf///wAAAAAAAAAAAAAAA=";
+let anyGoldMarkBytes: Uint8Array | null = null;
 const CODE_TYPE_OPTIONS: Array<{
   id: CodeType;
   label: string;
@@ -132,7 +113,7 @@ function buildMonochromeGraphic(
   y: number,
   requestedWidth: number,
   requestedHeight: number,
-  sourceRows: string[],
+  sourceBytes: Uint8Array,
   sourceWidth: number,
   sourceHeight: number,
 ) {
@@ -141,9 +122,16 @@ function buildMonochromeGraphic(
   const bytesPerRow = Math.ceil(width / 8);
   const hexRows: string[] = [];
 
+  const sourceBytesPerRow = Math.ceil(sourceWidth / 8);
+
+  function sourcePixel(sourceX: number, sourceY: number) {
+    const sourceByte = sourceBytes[sourceY * sourceBytesPerRow + Math.floor(sourceX / 8)];
+    return (sourceByte >>> (7 - (sourceX % 8))) & 1;
+  }
+
   for (let targetY = 0; targetY < height; targetY += 1) {
-    const sourceY = Math.min(sourceHeight - 1, Math.floor((targetY * sourceHeight) / height));
-    const sourceRow = sourceRows[sourceY];
+    const sourceTop = Math.floor((targetY * sourceHeight) / height);
+    const sourceBottom = Math.max(sourceTop + 1, Math.ceil(((targetY + 1) * sourceHeight) / height));
     let rowHex = "";
 
     for (let byteIndex = 0; byteIndex < bytesPerRow; byteIndex += 1) {
@@ -152,9 +140,19 @@ function buildMonochromeGraphic(
         const targetX = byteIndex * 8 + bit;
         byteValue <<= 1;
         if (targetX < width) {
-          const sourceX = Math.min(sourceWidth - 1, Math.floor((targetX * sourceWidth) / width));
-          const nibble = Number.parseInt(sourceRow[Math.floor(sourceX / 4)], 16);
-          byteValue |= (nibble >>> (3 - (sourceX % 4))) & 1;
+          const sourceLeft = Math.floor((targetX * sourceWidth) / width);
+          const sourceRight = Math.max(sourceLeft + 1, Math.ceil(((targetX + 1) * sourceWidth) / width));
+          let blackPixels = 0;
+          let sampledPixels = 0;
+
+          for (let sourceY = sourceTop; sourceY < Math.min(sourceHeight, sourceBottom); sourceY += 1) {
+            for (let sourceX = sourceLeft; sourceX < Math.min(sourceWidth, sourceRight); sourceX += 1) {
+              blackPixels += sourcePixel(sourceX, sourceY);
+              sampledPixels += 1;
+            }
+          }
+
+          byteValue |= blackPixels / Math.max(1, sampledPixels) >= 0.4 ? 1 : 0;
         }
       }
       rowHex += byteValue.toString(16).padStart(2, "0").toUpperCase();
@@ -168,13 +166,34 @@ function buildMonochromeGraphic(
 
 function buildAnyGoldMarkGraphic(x: number, y: number, requestedSize: number) {
   const size = Math.round(clamp(requestedSize, 12, 90));
-  return buildMonochromeGraphic(x, y, size, size, ANYGOLD_MARK_ROWS, 32, 32);
+  if (!anyGoldMarkBytes) {
+    const binary = window.atob(ANYGOLD_MARK_BASE64);
+    anyGoldMarkBytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  }
+  return buildMonochromeGraphic(
+    x,
+    y,
+    size,
+    size,
+    anyGoldMarkBytes,
+    ANYGOLD_MARK_SOURCE_WIDTH,
+    ANYGOLD_MARK_SOURCE_HEIGHT,
+  );
 }
 
 function buildAnyGoldFullGraphic(x: number, y: number, requestedWidth: number) {
   const width = Math.round(clamp(requestedWidth, 60, 360));
-  const height = Math.max(12, Math.round(width / 4));
-  return buildMonochromeGraphic(x, y, width, height, ANYGOLD_FULL_ROWS, 128, 32);
+  const height = Math.max(12, Math.round(width / 4.22));
+  const markSize = height;
+  const textX = x + Math.round(height * 0.88);
+  const textHeight = Math.max(12, Math.round(height * 0.78));
+  const textY = y + Math.round((height - textHeight) / 2);
+  const textWidth = Math.max(7, Math.round((width - (textX - x)) / 7));
+
+  return [
+    buildAnyGoldMarkGraphic(x, y, markSize),
+    `^FO${textX},${textY}^A0N,${textHeight},${textWidth}^FDAnyGold^FS`,
+  ].join("\r\n");
 }
 
 function SettingControl({

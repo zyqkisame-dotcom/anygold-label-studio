@@ -97,13 +97,17 @@ function Limit-Number {
     return [Math]::Min($Maximum, [Math]::Max($Minimum, $Value))
 }
 
+$anyGoldMarkSourceWidth = 128
+$anyGoldMarkSourceHeight = 128
+$anyGoldMarkBytes = [Convert]::FromBase64String('AAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABgAAAAAAAAAAAAAAAAAAAA4AAAAAAAAAAAAAAAAAAAAPAAAAAAAAAAAAAAAAAAAADwAAAAAAAAAAAAAAAAAAAB+AAAAAAAAAAAAAAAAAAAAfgAAAAAAAAAAAAAAAAAAAP8AAAAAAAAAAAAAAAAAAAD/AAAAAAAAAAAAAAAAAAAB/4AAAAAAAAAAAAAAAAAAAf+AAAAAAAAAAAAAAAAAAAP/gAAAAAAAAAAAAAAAAAAD/8AAAAAAAAAAAAAAAAAAB//AAAAAAAAAAAAAAAAAAAf/4AAAAAAAAAAAAAAAAAAP/+AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAf//gAAAAAAAAAAAAAAAAAH//4AAAAAAAAAAAAAAAAAD///AAAAAAAAAAAAAAAAAA///wAAAAAAAAAAAAAAAAAf//+AAAAAAAAAAAAAAAAAH///gAAAAAAAAAAAAAAAAD///4AAAAAAAAAAAAAAAAA////AAAAAAAAAAAAAAAAAf///wAAAAAAAAAAAAAAAAH///+AAAAAAAAAAAAAAAAD////gAAAAAAAAAAAAAAAA////8AAAAAAAAAAAAAAAAP////AAAAAAAAAAAAAAAAH////4AAAAAAAAAAAAAAAB////+AAAAAAAAAAAAAAAA/////wAAAAAAAAAAAAAAAP////8AAAAAAAAAAAAAAAH/////gAAAAAAAAAAAAAAB/////4AAAAAAAAAAAAAAA/////+AAAAAAAAAAAAAAAP/////wAAAAAAAAAAAAAAH/////8AAAAAAAAAAAAAAB//////gAAAAAAAAAAAAAAf/////4AAAAAAAAAAAAAAP//////AAAAAAAAAAAAAAD//////wAAAAAAAAAAAAAB//////+AAAAAAAAAAAAAAf//////gAAAAAAAAAAAAAP//////8AAAAAAAAAAAAAD///////AAAAAAAAAAAAAB///////wAAAAAAAAAAAAAf//////+AAAAAAAAAAAAAP///////gAAAAAAAAAAAAD///////8AAAAAAAAAAAAB////////AAAAAAAAAAAAAf///////4AAAAAAAAAAAAH///////+AAAAAAAAAAAAD////////wAAAAAAAAAAAA////////8AAAAAAAAAAAAf////////gAAAAAAAAAAAH////////4AAAAAAAAAAAD/////////AAAAAAAAAAAA/////////wAAAAAAAAAAAf////////8AAAAAAAAAAAH/////////gAAAAAAAAAAD/////////4AAAAAAAAAAA//////////AAAAAAAAAAAf/////////wAAAAAAAAAAH/////////+AAAAAAAAAAB//////////gAAAAAAAAAA//////////8AAAAAAAAAAP//////////AAAAAAAAAAH//////////4AAAAAAAAAB///5//////+AAAAAAAAAA///+H//////wAAAAAAAAAP///gf/////8AAAAAAAAAH///wD//////AAAAAAAAAB///8AP/////4AAAAAAAAA///+AA/////+AAAAAAAAAP///gAD/////wAAAAAAAAH///wAAf////8AAAAAAAAB///8AAB/////gAAAAAAAAf///AAAH////4AAAAAAAAP///gAAAf////AAAAAAAAD///4AAAD////wAAAAAAAB///8AAAAP///+AAAAAAAAf///AAAAA////gAAAAAAAP///gAAAAH///8AAAAAAAD///4AAAAAf///AAAAAAAB///+AAAAAH///wAAAAAAAf///AAAAAA///+AAAAAAAP///wAAAAAP///gAAAAAAD///4AAAAAD///8AAAAAAA///+AAAAAAf///AAAAAAAf///gAAAAAH///4AAAAAAH///wAAAAAA///+AAAAAAD///8AAAAAAP///wAAAAAA///+AAAAAAD///8AAAAAAf///gAAAAAAf///gAAAAAH///wAAAAAAH///4AAAAAD///8AAAAAAA////AAAAAA////AAAAAAAP///wAAAAAf///gAAAAAAB///8AAAAAH///4AAAAAAAAAAAAAAAAD///8AAAAAAAAAAAAAAAAA////AAAAAAAAAAAAAAAAAP///gAAAAAAAAAAAAAAAAH///4AAAAAAAAAAAAAAAAB///+AAAAAAAAAAAAAAAAA////AAAAAAAAAAAAAAAAAP///wAAAAAAAAAAAAAAAAH///4AAAAAAAAAAAAAAAAB///+AAAAAAAAAAAAAAAAA////gAAAAAAAAAAAAAAAAP///wAAAAAAAAAAAAAAAAH///8AAAAAAAAAAAAAAAAB///+AAAAAAAAAAAAAAAAA////gAAAAAAAAAAAAAAAAP///wAAAAAAAAAAAAAAAAD///8AAAAAAAAAAAAAAAAB////AAAAAAAAAAAAAAAAAf///gAAAAAAAAAAAAAAAAP///4AAAAAAAAAAAAAAAAD///8AAAAAAAAAAAAAAAAB////AAAAAAAAAAAAAAAAAf///wAAAAAAAAAAAAAAAAP///4AAAAAAAAAAAAAAAAD///+AAAAAAAAAAAAAAAAB////AAAAAAAAAAAAAAAAAf///wAAAAAAAAAAAAAAA=')
+
 function New-MonochromeGraphic {
     param(
         [int]$X,
         [int]$Y,
         [int]$TargetWidth,
         [int]$TargetHeight,
-        [string[]]$SourceRows,
+        [byte[]]$SourceBytes,
         [int]$SourceWidth,
         [int]$SourceHeight
     )
@@ -111,11 +115,12 @@ function New-MonochromeGraphic {
     $width = [Math]::Max(1, $TargetWidth)
     $height = [Math]::Max(1, $TargetHeight)
     $bytesPerRow = [int][Math]::Ceiling($width / 8.0)
+    $sourceBytesPerRow = [int][Math]::Ceiling($SourceWidth / 8.0)
     $hex = [System.Text.StringBuilder]::new()
 
     for ($targetY = 0; $targetY -lt $height; $targetY++) {
-        $sourceY = [Math]::Min($SourceHeight - 1, [int][Math]::Floor(($targetY * $SourceHeight) / $height))
-        $sourceRow = $SourceRows[$sourceY]
+        $sourceTop = [int][Math]::Floor(($targetY * $SourceHeight) / $height)
+        $sourceBottom = [Math]::Max($sourceTop + 1, [int][Math]::Ceiling((($targetY + 1) * $SourceHeight) / $height))
 
         for ($byteIndex = 0; $byteIndex -lt $bytesPerRow; $byteIndex++) {
             $byteValue = 0
@@ -123,10 +128,22 @@ function New-MonochromeGraphic {
                 $targetX = ($byteIndex * 8) + $bit
                 $byteValue = $byteValue -shl 1
                 if ($targetX -lt $width) {
-                    $sourceX = [Math]::Min($SourceWidth - 1, [int][Math]::Floor(($targetX * $SourceWidth) / $width))
-                    $nibbleIndex = [int][Math]::Floor($sourceX / 4.0)
-                    $nibble = [Convert]::ToInt32($sourceRow.Substring($nibbleIndex, 1), 16)
-                    $byteValue = $byteValue -bor (($nibble -shr (3 - ($sourceX % 4))) -band 1)
+                    $sourceLeft = [int][Math]::Floor(($targetX * $SourceWidth) / $width)
+                    $sourceRight = [Math]::Max($sourceLeft + 1, [int][Math]::Ceiling((($targetX + 1) * $SourceWidth) / $width))
+                    $blackPixels = 0
+                    $sampledPixels = 0
+
+                    for ($sourceY = $sourceTop; $sourceY -lt [Math]::Min($SourceHeight, $sourceBottom); $sourceY++) {
+                        for ($sourceX = $sourceLeft; $sourceX -lt [Math]::Min($SourceWidth, $sourceRight); $sourceX++) {
+                            $sourceByte = $SourceBytes[($sourceY * $sourceBytesPerRow) + [int][Math]::Floor($sourceX / 8.0)]
+                            $blackPixels += (($sourceByte -shr (7 - ($sourceX % 8))) -band 1)
+                            $sampledPixels += 1
+                        }
+                    }
+
+                    if (($blackPixels / [Math]::Max(1, $sampledPixels)) -ge 0.4) {
+                        $byteValue = $byteValue -bor 1
+                    }
                 }
             }
             [void]$hex.Append($byteValue.ToString('X2'))
@@ -140,40 +157,22 @@ function New-MonochromeGraphic {
 function New-AnyGoldMarkGraphic {
     param([int]$X, [int]$Y, [int]$RequestedSize)
 
-    $sourceRows = @(
-        '00000000', '00000000', '00000000', '00004000', '0000E000', '0000E000', '0001E000', '0001F000',
-        '0003F000', '0003F800', '0007F800', '0007FC00', '0007FC00', '000FFE00', '000FFE00', '001FFF00',
-        '001FFF00', '003FFF00', '003E7F80', '007C1F80', '007C0FC0', '00FC07C0', '00F803E0', '01F803E0',
-        '01F00000', '01F00000', '03E00000', '03E00000', '07E00000', '07C00000', '00000000', '00000000'
-    )
     $size = [int][Math]::Round((Limit-Number $RequestedSize 12 90))
-    return New-MonochromeGraphic -X $X -Y $Y -TargetWidth $size -TargetHeight $size -SourceRows $sourceRows -SourceWidth 32 -SourceHeight 32
+    return New-MonochromeGraphic -X $X -Y $Y -TargetWidth $size -TargetHeight $size -SourceBytes $anyGoldMarkBytes -SourceWidth $anyGoldMarkSourceWidth -SourceHeight $anyGoldMarkSourceHeight
 }
 
 function New-AnyGoldFullGraphic {
     param([int]$X, [int]$Y, [int]$RequestedWidth)
 
-    $sourceRows = @(
-        '00000000000000000000000000000000', '000400000000000007F0000000F0001F',
-        '00060000000000001FFC000001F8001F', '00060000000000007FFF000001F8001F',
-        '000F000000000000FFFF800001F8001F', '000F000000000001FFFF800001F8001F',
-        '001F800000000001FF3F000001F8001F', '001F800000000003F806000001F8001F',
-        '003FC00000000003F000000001F8001F', '003FC01FFC3F03E7E00000FF01F81FFF',
-        '007FE01FFE1F07E7C0FF81FFC1F83FFF', '007FE01FFF1F87E7C0FFC3FFE1F87FFF',
-        '00FFF01FFF1F87C7C0FF87FFF1F8FFFF', '00FFF01FBF8F8FC7C0FF87FFF1F8FE7F',
-        '01FFF01F1F8FCF87C0FF8FC1F1F9F83F', '01FFF81F0F87CF87C0FF8F81F9F9F81F',
-        '01FFF81F0F87FF87E00F8F80F9F9F01F', '03FFFC1F0F83FF07F00F8F80F9F9F01F',
-        '03E7FC1F0F83FF03F80F8FC1F9F9F81F', '07E1FE1F0F83FE01FE3F8FE3F1F8FC3F',
-        '07C0FE1F0F81FE01FFFFC7FFF1F8FFFF', '0FC03F1F0F81FE00FFFF87FFE1F87FFF',
-        '0FC03F1F0F80FC007FFF03FFC1F87FFF', '1F801F9F0F80FC001FFE01FF81F83FFF',
-        '1F801F9F0F80F80007F0007E00F00FCF', '3F0000000001F8000000000000000000',
-        '3F0000000001F8000000000000000000', '7E0000000001F0000000000000000000',
-        '7E0000000003F0000000000000000000', 'FE0000000003E0000000000000000000',
-        'FC0000000007E0000000000000000000', '00000000000000000000000000000000'
-    )
     $width = [int][Math]::Round((Limit-Number $RequestedWidth 60 360))
-    $height = [Math]::Max(12, [int][Math]::Round($width / 4.0))
-    return New-MonochromeGraphic -X $X -Y $Y -TargetWidth $width -TargetHeight $height -SourceRows $sourceRows -SourceWidth 128 -SourceHeight 32
+    $height = [Math]::Max(12, [int][Math]::Round($width / 4.22))
+    $markSize = $height
+    $textX = $X + [int][Math]::Round($height * 0.88)
+    $textHeight = [Math]::Max(12, [int][Math]::Round($height * 0.78))
+    $textY = $Y + [int][Math]::Round(($height - $textHeight) / 2.0)
+    $textWidth = [Math]::Max(7, [int][Math]::Round(($width - ($textX - $X)) / 7.0))
+    $markGraphic = New-AnyGoldMarkGraphic -X $X -Y $Y -RequestedSize $markSize
+    return "$markGraphic`r`n^FO$textX,$textY^A0N,$textHeight,$textWidth^FDAnyGold^FS"
 }
 
 function New-LabelZpl {
