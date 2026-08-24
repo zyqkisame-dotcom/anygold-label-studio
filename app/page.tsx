@@ -19,7 +19,8 @@ type GoldTagDetails = { purity: string; weight: string; length: string };
 type DragTarget =
   | { type: "text"; index: number }
   | { type: "standardText" }
-  | { type: "logo" }
+  | { type: "logoMark" }
+  | { type: "logoWordmark" }
   | { type: "qr" };
 type PrintSettings = {
   labelWidthMm: number;
@@ -32,6 +33,9 @@ type PrintSettings = {
   logoXmm: number;
   logoYmm: number;
   logoSize: number;
+  markXmm: number;
+  markYmm: number;
+  markSize: number;
   textSize: number;
   speed: number;
   darkness: number;
@@ -66,9 +70,12 @@ const DEFAULT_SETTINGS: PrintSettings = {
   qrXmm: 17.5,
   qrYmm: 7,
   qrSize: 4,
-  logoXmm: 5,
-  logoYmm: 4,
+  logoXmm: 9,
+  logoYmm: 4.5,
   logoSize: 30,
+  markXmm: 5,
+  markYmm: 4,
+  markSize: 38,
   textSize: 28,
   speed: 2,
   darkness: 10,
@@ -209,11 +216,11 @@ function buildZpl(fields: {
   const qrY = mmToDots(clamp(settings.qrYmm, 0, settings.labelHeightMm));
   const logoX = mmToDots(clamp(settings.logoXmm, 0, settings.labelWidthMm));
   const logoY = mmToDots(clamp(settings.logoYmm, 0, settings.labelHeightMm));
+  const markX = mmToDots(clamp(settings.markXmm, 0, settings.labelWidthMm));
+  const markY = mmToDots(clamp(settings.markYmm, 0, settings.labelHeightMm));
   const logoHeight = Math.round(clamp(settings.logoSize, 12, 72));
   const logoWidth = Math.round(logoHeight * 0.82);
-  const logoIconDiameter = Math.round(logoHeight * 1.25);
-  const logoWordmarkX = logoX + logoIconDiameter + Math.round(logoHeight * 0.32);
-  const logoWordmarkY = logoY + Math.round((logoIconDiameter - logoHeight) / 2);
+  const markSize = Math.round(clamp(settings.markSize, 12, 90));
   const fontHeight = Math.round(clamp(settings.textSize, 12, 60));
   const fontWidth = Math.round(fontHeight * 0.86);
   const lineStep = Math.round(fontHeight * 1.18);
@@ -249,8 +256,8 @@ function buildZpl(fields: {
         : `^FO${qrX},${qrY}^BQN,2,${qrSize}^FDLA,${codeData}^FS`;
   const logoCommand = fields.showBrandLogo
     ? [
-        buildAnyGoldMarkGraphic(logoX, logoY, logoIconDiameter),
-        `^FO${logoWordmarkX},${logoWordmarkY}^A0N,${logoHeight},${logoWidth}^FDAnyGold^FS`,
+        buildAnyGoldMarkGraphic(markX, markY, markSize),
+        `^FO${logoX},${logoY}^A0N,${logoHeight},${logoWidth}^FDAnyGold^FS`,
       ].join("\r\n")
     : "";
 
@@ -418,7 +425,26 @@ export default function Home() {
     try {
       const stored = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
       if (stored) {
-        setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(stored) });
+        const parsed = JSON.parse(stored) as Partial<PrintSettings>;
+        const legacyLogoX = Number.isFinite(parsed.logoXmm) ? parsed.logoXmm as number : 5;
+        const legacyLogoY = Number.isFinite(parsed.logoYmm) ? parsed.logoYmm as number : 4;
+        const legacyLogoSize = Number.isFinite(parsed.logoSize) ? parsed.logoSize as number : 30;
+        const hasSeparateMark = Number.isFinite(parsed.markXmm)
+          && Number.isFinite(parsed.markYmm)
+          && Number.isFinite(parsed.markSize);
+        setSettings({
+          ...DEFAULT_SETTINGS,
+          ...parsed,
+          markXmm: hasSeparateMark ? parsed.markXmm as number : legacyLogoX,
+          markYmm: hasSeparateMark ? parsed.markYmm as number : legacyLogoY,
+          markSize: hasSeparateMark ? parsed.markSize as number : Math.round(legacyLogoSize * 1.25),
+          logoXmm: hasSeparateMark
+            ? legacyLogoX
+            : legacyLogoX + (legacyLogoSize * 1.57) / DOTS_PER_MM,
+          logoYmm: hasSeparateMark
+            ? legacyLogoY
+            : legacyLogoY + (legacyLogoSize * 0.125) / DOTS_PER_MM,
+        });
       }
     } catch {
       window.localStorage.removeItem(SETTINGS_STORAGE_KEY);
@@ -531,9 +557,12 @@ export default function Home() {
       labelWidthMm: 70,
       labelHeightMm: 35,
       textSize: 18,
-      logoXmm: 5,
-      logoYmm: 4,
+      logoXmm: 9,
+      logoYmm: 4.5,
       logoSize: 30,
+      markXmm: 5,
+      markYmm: 4,
+      markSize: 38,
       qrXmm: 8,
       qrYmm: 20.5,
       qrSize: 2,
@@ -553,8 +582,11 @@ export default function Home() {
       next.qrYmm = clamp(next.qrYmm, 0, next.labelHeightMm);
       next.logoXmm = clamp(next.logoXmm, 0, next.labelWidthMm);
       next.logoYmm = clamp(next.logoYmm, 0, next.labelHeightMm);
+      next.markXmm = clamp(next.markXmm, 0, next.labelWidthMm);
+      next.markYmm = clamp(next.markYmm, 0, next.labelHeightMm);
       next.qrSize = Math.round(clamp(next.qrSize, 2, 10));
       next.logoSize = Math.round(clamp(next.logoSize, 12, 72));
+      next.markSize = Math.round(clamp(next.markSize, 12, 90));
       next.textSize = Math.round(clamp(next.textSize, 12, 60));
       next.speed = Math.round(clamp(next.speed, 2, 4));
       next.darkness = Math.round(clamp(next.darkness, 0, 30));
@@ -591,14 +623,18 @@ export default function Home() {
       ? textPosition?.xMm ?? 0
       : target.type === "standardText"
         ? settings.textXmm
-        : target.type === "logo"
+        : target.type === "logoMark"
+          ? settings.markXmm
+          : target.type === "logoWordmark"
           ? settings.logoXmm
           : settings.qrXmm;
     const currentYmm = target.type === "text"
       ? textPosition?.yMm ?? 0
       : target.type === "standardText"
         ? settings.textYmm
-        : target.type === "logo"
+        : target.type === "logoMark"
+          ? settings.markYmm
+          : target.type === "logoWordmark"
           ? settings.logoYmm
           : settings.qrYmm;
     if (target.type === "text") setSelectedLineIndex(target.index);
@@ -638,7 +674,13 @@ export default function Home() {
         textXmm: Math.round(xMm * 2) / 2,
         textYmm: Math.round(yMm * 2) / 2,
       }));
-    } else if (drag.target.type === "logo") {
+    } else if (drag.target.type === "logoMark") {
+      setSettings((current) => ({
+        ...current,
+        markXmm: Math.round(xMm * 2) / 2,
+        markYmm: Math.round(yMm * 2) / 2,
+      }));
+    } else if (drag.target.type === "logoWordmark") {
       setSettings((current) => ({
         ...current,
         logoXmm: Math.round(xMm * 2) / 2,
@@ -684,9 +726,12 @@ export default function Home() {
     "--text-left": `${(settings.textXmm / settings.labelWidthMm) * 100}%`,
     "--text-top": `${(settings.textYmm / settings.labelHeightMm) * 100}%`,
     "--text-size": `${(settings.textSize / labelWidthDots) * 100}cqw`,
-    "--logo-left": `${(settings.logoXmm / settings.labelWidthMm) * 100}%`,
-    "--logo-top": `${(settings.logoYmm / settings.labelHeightMm) * 100}%`,
-    "--logo-size": `${(settings.logoSize / labelWidthDots) * 100}cqw`,
+    "--logo-word-left": `${(settings.logoXmm / settings.labelWidthMm) * 100}%`,
+    "--logo-word-top": `${(settings.logoYmm / settings.labelHeightMm) * 100}%`,
+    "--logo-word-size": `${(settings.logoSize / labelWidthDots) * 100}cqw`,
+    "--logo-mark-left": `${(settings.markXmm / settings.labelWidthMm) * 100}%`,
+    "--logo-mark-top": `${(settings.markYmm / settings.labelHeightMm) * 100}%`,
+    "--logo-mark-size": `${(settings.markSize / labelWidthDots) * 100}cqw`,
     "--qr-left": `${(settings.qrXmm / settings.labelWidthMm) * 100}%`,
     "--qr-top": `${(settings.qrYmm / settings.labelHeightMm) * 100}%`,
     "--qr-width": `${codePreviewWidth}%`,
@@ -999,7 +1044,7 @@ export default function Home() {
                   </span>
                   <span>
                     <strong>Print complete AnyGold logo</strong>
-                    <small>Add the A icon and AnyGold wordmark to the physical tag.</small>
+                    <small>Move and resize the A logo and AnyGold text separately.</small>
                   </span>
                   <span className="print-logo-option-state">{showBrandLogo ? "On" : "Off"}</span>
                 </label>
@@ -1193,9 +1238,45 @@ export default function Home() {
 
                 {designMode === "custom" && showBrandLogo && (
                   <fieldset className="settings-group logo-settings-group">
-                    <legend>AnyGold logo</legend>
+                    <legend>A logo</legend>
                     <SettingControl
-                      id="logo-x"
+                      id="mark-x"
+                      label="Left ↔ right"
+                      value={settings.markXmm}
+                      minimum={0}
+                      maximum={settings.labelWidthMm}
+                      step={0.5}
+                      unit="mm"
+                      onChange={(value) => updateSetting("markXmm", value)}
+                    />
+                    <SettingControl
+                      id="mark-y"
+                      label="Up ↕ down"
+                      value={settings.markYmm}
+                      minimum={0}
+                      maximum={settings.labelHeightMm}
+                      step={0.5}
+                      unit="mm"
+                      onChange={(value) => updateSetting("markYmm", value)}
+                    />
+                    <SettingControl
+                      id="mark-size"
+                      label="A logo size"
+                      value={settings.markSize}
+                      minimum={12}
+                      maximum={90}
+                      step={1}
+                      unit="dot"
+                      onChange={(value) => updateSetting("markSize", value)}
+                    />
+                  </fieldset>
+                )}
+
+                {designMode === "custom" && showBrandLogo && (
+                  <fieldset className="settings-group logo-settings-group">
+                    <legend>AnyGold text</legend>
+                    <SettingControl
+                      id="logo-word-x"
                       label="Left ↔ right"
                       value={settings.logoXmm}
                       minimum={0}
@@ -1205,7 +1286,7 @@ export default function Home() {
                       onChange={(value) => updateSetting("logoXmm", value)}
                     />
                     <SettingControl
-                      id="logo-y"
+                      id="logo-word-y"
                       label="Up ↕ down"
                       value={settings.logoYmm}
                       minimum={0}
@@ -1215,8 +1296,8 @@ export default function Home() {
                       onChange={(value) => updateSetting("logoYmm", value)}
                     />
                     <SettingControl
-                      id="logo-size"
-                      label="Complete logo size"
+                      id="logo-word-size"
+                      label="AnyGold text size"
                       value={settings.logoSize}
                       minimum={12}
                       maximum={72}
@@ -1353,23 +1434,37 @@ export default function Home() {
 
               <div className="label-stage">
                 <div className="drag-hint">
-                  {designMode === "custom" ? "Drag each line, logo or code" : "Drag text or code to move"}
+                  {designMode === "custom" ? "Drag each line, A logo, AnyGold text or code" : "Drag text or code to move"}
                 </div>
                 <div className="label-paper" style={labelPreviewStyle} ref={labelPaperRef}>
                   {designMode === "custom" && showBrandLogo && (
                     <div
-                      className="print-brand-logo draggable-item"
+                      className="print-brand-mark draggable-item"
                       role="button"
                       tabIndex={0}
-                      aria-label="Move the complete AnyGold logo"
-                      title="Drag to reposition the A icon and AnyGold wordmark"
-                      onPointerDown={(event) => startPreviewDrag({ type: "logo" }, event)}
+                      aria-label="Move the AnyGold A logo"
+                      title="Drag to reposition the A logo"
+                      onPointerDown={(event) => startPreviewDrag({ type: "logoMark" }, event)}
                       onPointerMove={movePreviewDrag}
                       onPointerUp={endPreviewDrag}
                       onPointerCancel={endPreviewDrag}
                     >
-                      <img className="print-brand-mark" src="/anygold-a.png" alt="" aria-hidden="true" />
-                      <span className="print-brand-wordmark">AnyGold</span>
+                      <img src="/anygold-a.png" alt="" aria-hidden="true" />
+                    </div>
+                  )}
+                  {designMode === "custom" && showBrandLogo && (
+                    <div
+                      className="print-brand-wordmark draggable-item"
+                      role="button"
+                      tabIndex={0}
+                      aria-label="Move the AnyGold text"
+                      title="Drag to reposition the AnyGold text"
+                      onPointerDown={(event) => startPreviewDrag({ type: "logoWordmark" }, event)}
+                      onPointerMove={movePreviewDrag}
+                      onPointerUp={endPreviewDrag}
+                      onPointerCancel={endPreviewDrag}
+                    >
+                      AnyGold
                     </div>
                   )}
                   {designMode === "custom" ? (

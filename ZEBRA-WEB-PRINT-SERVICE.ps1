@@ -176,13 +176,13 @@ function New-LabelZpl {
     $textY = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'textYmm' 7.5) 0 $labelHeightMm) * $dotsPerMm)
     $qrX = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'qrXmm' 17.5) 0 $labelWidthMm) * $dotsPerMm)
     $qrY = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'qrYmm' 7) 0 $labelHeightMm) * $dotsPerMm)
-    $logoX = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'logoXmm' 5) 0 $labelWidthMm) * $dotsPerMm)
-    $logoY = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'logoYmm' 4) 0 $labelHeightMm) * $dotsPerMm)
+    $logoX = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'logoXmm' 9) 0 $labelWidthMm) * $dotsPerMm)
+    $logoY = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'logoYmm' 4.5) 0 $labelHeightMm) * $dotsPerMm)
     $logoHeight = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'logoSize' 30) 12 72))
     $logoWidth = [int][Math]::Round($logoHeight * 0.82)
-    $logoIconDiameter = [int][Math]::Round($logoHeight * 1.25)
-    $logoWordmarkX = $logoX + $logoIconDiameter + [int][Math]::Round($logoHeight * 0.32)
-    $logoWordmarkY = $logoY + [int][Math]::Round(($logoIconDiameter - $logoHeight) / 2.0)
+    $markX = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'markXmm' 5) 0 $labelWidthMm) * $dotsPerMm)
+    $markY = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'markYmm' 4) 0 $labelHeightMm) * $dotsPerMm)
+    $markSize = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'markSize' 38) 12 90))
     $fontHeight = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'textSize' 28) 12 60))
     $fontWidth = [int][Math]::Round($fontHeight * 0.86)
     $lineStep = [int][Math]::Round($fontHeight * 1.18)
@@ -204,8 +204,8 @@ function New-LabelZpl {
     $zpl.Add("^PR$speed")
 
     if ([bool]$Data.showBrandLogo) {
-        $zpl.Add((New-AnyGoldMarkGraphic -X $logoX -Y $logoY -RequestedSize $logoIconDiameter))
-        $zpl.Add("^FO$logoWordmarkX,$logoWordmarkY^A0N,$logoHeight,$logoWidth^FDAnyGold^FS")
+        $zpl.Add((New-AnyGoldMarkGraphic -X $markX -Y $markY -RequestedSize $markSize))
+        $zpl.Add("^FO$logoX,$logoY^A0N,$logoHeight,$logoWidth^FDAnyGold^FS")
     }
 
     $customLinePositions = @($Data.customLinePositions)
