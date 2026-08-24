@@ -59,10 +59,49 @@ button {
 .brand-lockup {
   align-items: center;
   display: flex;
+  gap: 12px;
+}
+
+.brand-mark {
+  background: linear-gradient(145deg, #f6d166, #db9b27);
+  border-radius: 12px;
+  box-shadow: 0 8px 22px rgba(219, 155, 39, 0.2);
+  display: inline-grid;
+  flex: 0 0 38px;
+  height: 38px;
+  overflow: hidden;
+  place-items: center;
+  position: relative;
+  width: 38px;
+}
+
+.brand-mark span {
+  background: #174b39;
+  border-radius: 3px 3px 0 0;
+  bottom: 9px;
+  display: block;
+  position: absolute;
+  transform: rotate(10deg);
+  width: 5px;
+}
+
+.brand-mark span:nth-child(1) {
+  height: 10px;
+  left: 10px;
+}
+
+.brand-mark span:nth-child(2) {
+  height: 18px;
+  left: 17px;
+}
+
+.brand-mark span:nth-child(3) {
+  height: 24px;
+  left: 24px;
 }
 
 .brand-name {
-  color: var(--anygold);
+  color: var(--ink);
   font-family: Arial, sans-serif;
   font-size: 28px;
   font-weight: 900;
