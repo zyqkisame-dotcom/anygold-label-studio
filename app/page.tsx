@@ -352,15 +352,40 @@ export default function Home() {
 
   useEffect(() => {
     let active = true;
-    fetch(`${PRINT_SERVICE}/status`)
-      .then((response) => {
+    let requestController: AbortController | null = null;
+
+    async function checkPrinter() {
+      if (!active) return;
+      requestController?.abort();
+      const controller = new AbortController();
+      requestController = controller;
+      const timeout = window.setTimeout(() => controller.abort(), 4000);
+
+      try {
+        const response = await fetch(`${PRINT_SERVICE}/status`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
         if (!response.ok) throw new Error("Printer service unavailable");
-        return response.json();
-      })
-      .then(() => active && setPrinterState("online"))
-      .catch(() => active && setPrinterState("offline"));
+        const result = await response.json();
+        if (result.online !== true) throw new Error("Printer is offline");
+        if (active) setPrinterState("online");
+      } catch {
+        if (active) setPrinterState("offline");
+      } finally {
+        window.clearTimeout(timeout);
+      }
+    }
+
+    void checkPrinter();
+    const interval = window.setInterval(() => void checkPrinter(), 10000);
+    window.addEventListener("focus", checkPrinter);
+
     return () => {
       active = false;
+      requestController?.abort();
+      window.clearInterval(interval);
+      window.removeEventListener("focus", checkPrinter);
     };
   }, []);
 

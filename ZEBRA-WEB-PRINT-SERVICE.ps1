@@ -269,6 +269,9 @@ function Send-HttpResponse {
         "Access-Control-Allow-Origin: $Origin"
         'Access-Control-Allow-Methods: GET, POST, OPTIONS'
         'Access-Control-Allow-Headers: Content-Type'
+        'Access-Control-Allow-Private-Network: true'
+        'Access-Control-Max-Age: 600'
+        'Cache-Control: no-store'
         'Connection: close'
         ''
         ''
@@ -283,13 +286,23 @@ function Send-HttpResponse {
 
 $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $port)
 $listener.Start()
+$allowedOrigins = @(
+    'http://localhost:3000'
+    'http://127.0.0.1:3000'
+    'https://anygold-label-studio.zyqkisame.chatgpt.site'
+)
 
 try {
     while ($true) {
         $client = $listener.AcceptTcpClient()
         try {
+            $client.ReceiveTimeout = 2500
+            $client.SendTimeout = 2500
             $stream = $client.GetStream()
+            $stream.ReadTimeout = 2500
+            $stream.WriteTimeout = 2500
             $reader = New-Object System.IO.StreamReader($stream, [System.Text.Encoding]::UTF8, $false, 8192, $true)
+            $origin = 'null'
             $requestLine = $reader.ReadLine()
             if ([string]::IsNullOrWhiteSpace($requestLine)) { continue }
 
@@ -297,7 +310,6 @@ try {
             $method = $requestParts[0].ToUpperInvariant()
             $path = $requestParts[1].Split('?')[0]
             $contentLength = 0
-            $origin = 'http://localhost:3000'
 
             while ($true) {
                 $line = $reader.ReadLine()
@@ -307,7 +319,7 @@ try {
                     $name = $line.Substring(0, $separator).Trim()
                     $value = $line.Substring($separator + 1).Trim()
                     if ($name -ieq 'Content-Length') { $contentLength = [int]$value }
-                    if ($name -ieq 'Origin' -and $value -in @('http://localhost:3000', 'http://127.0.0.1:3000')) {
+                    if ($name -ieq 'Origin' -and $value -in $allowedOrigins) {
                         $origin = $value
                     }
                 }
@@ -360,7 +372,7 @@ try {
         catch {
             try {
                 $json = @{ message = $_.Exception.Message } | ConvertTo-Json -Compress
-                Send-HttpResponse -Stream $stream -StatusCode 500 -StatusText 'Internal Server Error' -Json $json -Origin 'http://localhost:3000'
+                Send-HttpResponse -Stream $stream -StatusCode 500 -StatusText 'Internal Server Error' -Json $json -Origin $origin
             }
             catch {}
         }
