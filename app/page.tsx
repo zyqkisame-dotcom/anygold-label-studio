@@ -684,11 +684,6 @@ export default function Home() {
     <main>
       <header className="topbar">
         <div className="brand-lockup" aria-label="AnyGold Label Studio">
-          <span className="brand-mark" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </span>
           <div>
             <div className="brand-name">AnyGold</div>
             <div className="brand-product">Label Studio</div>
