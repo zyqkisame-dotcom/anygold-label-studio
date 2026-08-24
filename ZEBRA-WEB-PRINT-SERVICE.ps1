@@ -141,6 +141,10 @@ function New-LabelZpl {
     $textY = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'textYmm' 7.5) 0 $labelHeightMm) * $dotsPerMm)
     $qrX = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'qrXmm' 17.5) 0 $labelWidthMm) * $dotsPerMm)
     $qrY = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'qrYmm' 7) 0 $labelHeightMm) * $dotsPerMm)
+    $logoX = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'logoXmm' 5) 0 $labelWidthMm) * $dotsPerMm)
+    $logoY = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'logoYmm' 4) 0 $labelHeightMm) * $dotsPerMm)
+    $logoHeight = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'logoSize' 30) 18 60))
+    $logoWidth = [int][Math]::Round($logoHeight * 0.82)
     $fontHeight = [int][Math]::Round((Limit-Number (Get-SettingNumber $settings 'textSize' 28) 12 60))
     $fontWidth = [int][Math]::Round($fontHeight * 0.86)
     $lineStep = [int][Math]::Round($fontHeight * 1.18)
@@ -160,6 +164,10 @@ function New-LabelZpl {
     $zpl.Add('^LS0')
     $zpl.Add('^MNY')
     $zpl.Add("^PR$speed")
+
+    if ([bool]$Data.showBrandLogo) {
+        $zpl.Add("^FO$logoX,$logoY^A0N,$logoHeight,$logoWidth^FDAnyGold^FS")
+    }
 
     $customLinePositions = @($Data.customLinePositions)
     for ($index = 0; $index -lt $textItems.Count; $index++) {

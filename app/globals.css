@@ -407,6 +407,15 @@ h1 {
   font-size: 12px;
 }
 
+.gold-tag-mini-preview .gold-tag-wordmark {
+  font-family: Arial, sans-serif;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  margin-bottom: 2px;
+  text-transform: none;
+}
+
 .gold-tag-mini-qr {
   align-items: center;
   aspect-ratio: 1;
@@ -669,6 +678,62 @@ h1 {
   outline: none;
   padding: 0 13px;
   width: 100%;
+}
+
+.print-logo-option {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  cursor: pointer;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  padding: 13px 15px;
+}
+
+.print-logo-option input {
+  accent-color: var(--forest);
+  height: 18px;
+  margin: 0;
+  width: 18px;
+}
+
+.print-logo-option-mark {
+  align-items: center;
+  background: var(--anygold);
+  border-radius: 9px;
+  color: var(--forest);
+  display: flex;
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 900;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.print-logo-option > span:nth-of-type(2) {
+  display: grid;
+  gap: 2px;
+}
+
+.print-logo-option strong {
+  font-size: 12px;
+}
+
+.print-logo-option small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.print-logo-option-state {
+  background: var(--soft);
+  border-radius: 999px;
+  color: var(--forest);
+  font-size: 10px;
+  font-weight: 800;
+  padding: 6px 9px;
 }
 
 .code-error {
@@ -1123,6 +1188,22 @@ h1 {
   text-transform: uppercase;
   top: var(--text-top);
   z-index: 2;
+}
+
+.print-brand-logo {
+  color: #000;
+  cursor: grab;
+  font-family: Arial, sans-serif;
+  font-size: max(9px, var(--logo-size));
+  font-weight: 900;
+  left: var(--logo-left);
+  letter-spacing: -0.05em;
+  line-height: 1;
+  position: absolute;
+  text-transform: none;
+  top: var(--logo-top);
+  white-space: nowrap;
+  z-index: 3;
 }
 
 .label-copy.custom-line {

@@ -19,6 +19,7 @@ type GoldTagDetails = { purity: string; weight: string; length: string };
 type DragTarget =
   | { type: "text"; index: number }
   | { type: "standardText" }
+  | { type: "logo" }
   | { type: "qr" };
 type PrintSettings = {
   labelWidthMm: number;
@@ -28,6 +29,9 @@ type PrintSettings = {
   qrXmm: number;
   qrYmm: number;
   qrSize: number;
+  logoXmm: number;
+  logoYmm: number;
+  logoSize: number;
   textSize: number;
   speed: number;
   darkness: number;
@@ -56,6 +60,9 @@ const DEFAULT_SETTINGS: PrintSettings = {
   qrXmm: 17.5,
   qrYmm: 7,
   qrSize: 4,
+  logoXmm: 5,
+  logoYmm: 4,
+  logoSize: 30,
   textSize: 28,
   speed: 2,
   darkness: 10,
@@ -65,10 +72,10 @@ const DEFAULT_CUSTOM_LINE_POSITIONS: TextPosition[] = Array.from(
   (_, index) => ({ xMm: 5, yMm: 7.5 + index * 3 }),
 );
 const GOLD_TAG_LINE_POSITIONS: TextPosition[] = [
-  { xMm: 5, yMm: 4.5 },
-  { xMm: 5, yMm: 8 },
-  { xMm: 5, yMm: 11.5 },
-  { xMm: 5, yMm: 15 },
+  { xMm: 5, yMm: 10 },
+  { xMm: 5, yMm: 13.5 },
+  { xMm: 5, yMm: 17 },
+  { xMm: 5, yMm: 20.5 },
   { xMm: 5, yMm: 18.5 },
   { xMm: 5, yMm: 22 },
 ];
@@ -144,6 +151,7 @@ function buildZpl(fields: {
   designMode: DesignMode;
   customText: string;
   customLinePositions: TextPosition[];
+  showBrandLogo: boolean;
   codeType: CodeType;
   qrData: string;
   quantity: number;
@@ -164,6 +172,10 @@ function buildZpl(fields: {
   const textY = mmToDots(clamp(settings.textYmm, 0, settings.labelHeightMm));
   const qrX = mmToDots(clamp(settings.qrXmm, 0, settings.labelWidthMm));
   const qrY = mmToDots(clamp(settings.qrYmm, 0, settings.labelHeightMm));
+  const logoX = mmToDots(clamp(settings.logoXmm, 0, settings.labelWidthMm));
+  const logoY = mmToDots(clamp(settings.logoYmm, 0, settings.labelHeightMm));
+  const logoHeight = Math.round(clamp(settings.logoSize, 18, 60));
+  const logoWidth = Math.round(logoHeight * 0.82);
   const fontHeight = Math.round(clamp(settings.textSize, 12, 60));
   const fontWidth = Math.round(fontHeight * 0.86);
   const lineStep = Math.round(fontHeight * 1.18);
@@ -197,6 +209,9 @@ function buildZpl(fields: {
       : fields.codeType === "ean13"
         ? `^FO${qrX},${qrY}^BY${moduleWidth},2,${barcodeHeight}^BEN,${barcodeHeight},Y,N^FD${codeData}^FS`
         : `^FO${qrX},${qrY}^BQN,2,${qrSize}^FDLA,${codeData}^FS`;
+  const logoCommand = fields.showBrandLogo
+    ? `^FO${logoX},${logoY}^A0N,${logoHeight},${logoWidth}^FDAnyGold^FS`
+    : "";
 
   return [
     `~SD${darkness.toString().padStart(2, "0")}`,
@@ -208,6 +223,7 @@ function buildZpl(fields: {
     "^LS0",
     "^MNY",
     `^PR${speed}`,
+    logoCommand,
     textCommands,
     codeCommand,
     `^PQ${Math.max(1, Math.min(100, fields.quantity))},0,1,Y`,
@@ -232,6 +248,7 @@ export default function Home() {
   const [selectedLineIndex, setSelectedLineIndex] = useState(0);
   const [customQr, setCustomQr] = useState("CUSTOM-001");
   const [customCodeType, setCustomCodeType] = useState<CodeType>("qr");
+  const [showBrandLogo, setShowBrandLogo] = useState(false);
   const [goldTagDetails, setGoldTagDetails] = useState<GoldTagDetails>({
     purity: "916",
     weight: "20.00",
@@ -384,6 +401,7 @@ export default function Home() {
         }
         if (typeof design.customText === "string") setCustomText(design.customText);
         if (typeof design.customQr === "string") setCustomQr(design.customQr);
+        if (typeof design.showBrandLogo === "boolean") setShowBrandLogo(design.showBrandLogo);
         if (Array.isArray(design.customLinePositions)) {
           setCustomLinePositions(
             DEFAULT_CUSTOM_LINE_POSITIONS.map((fallback, index) => {
@@ -418,9 +436,10 @@ export default function Home() {
         customQr,
         customCodeType,
         customLinePositions,
+        showBrandLogo,
       }),
     );
-  }, [customCodeType, customLinePositions, customQr, customText, designMode, designStorageReady]);
+  }, [customCodeType, customLinePositions, customQr, customText, designMode, designStorageReady, showBrandLogo]);
 
   useEffect(() => {
     if (designMode !== "custom") return;
@@ -457,13 +476,13 @@ export default function Home() {
 
     setDesignMode("custom");
     setCustomText([
-      "ANYGOLD",
       `PURITY ${purity}`,
       `WEIGHT ${weight}G`,
       `LENGTH ${length}CM`,
     ].join("\n"));
     setCustomLinePositions(GOLD_TAG_LINE_POSITIONS);
     setSelectedLineIndex(0);
+    setShowBrandLogo(true);
     setCustomCodeType("qr");
     setCustomQr(`ANYGOLD-${purity}-${weight}G-${length}CM`);
     setSettings((current) => ({
@@ -471,6 +490,9 @@ export default function Home() {
       labelWidthMm: 70,
       labelHeightMm: 35,
       textSize: 18,
+      logoXmm: 5,
+      logoYmm: 4,
+      logoSize: 30,
       qrXmm: 8,
       qrYmm: 20.5,
       qrSize: 2,
@@ -488,7 +510,10 @@ export default function Home() {
       next.textYmm = clamp(next.textYmm, 0, next.labelHeightMm);
       next.qrXmm = clamp(next.qrXmm, 0, next.labelWidthMm);
       next.qrYmm = clamp(next.qrYmm, 0, next.labelHeightMm);
+      next.logoXmm = clamp(next.logoXmm, 0, next.labelWidthMm);
+      next.logoYmm = clamp(next.logoYmm, 0, next.labelHeightMm);
       next.qrSize = Math.round(clamp(next.qrSize, 2, 10));
+      next.logoSize = Math.round(clamp(next.logoSize, 18, 60));
       next.textSize = Math.round(clamp(next.textSize, 12, 60));
       next.speed = Math.round(clamp(next.speed, 2, 4));
       next.darkness = Math.round(clamp(next.darkness, 0, 30));
@@ -525,12 +550,16 @@ export default function Home() {
       ? textPosition?.xMm ?? 0
       : target.type === "standardText"
         ? settings.textXmm
-        : settings.qrXmm;
+        : target.type === "logo"
+          ? settings.logoXmm
+          : settings.qrXmm;
     const currentYmm = target.type === "text"
       ? textPosition?.yMm ?? 0
       : target.type === "standardText"
         ? settings.textYmm
-        : settings.qrYmm;
+        : target.type === "logo"
+          ? settings.logoYmm
+          : settings.qrYmm;
     if (target.type === "text") setSelectedLineIndex(target.index);
     dragRef.current = {
       target,
@@ -568,6 +597,12 @@ export default function Home() {
         textXmm: Math.round(xMm * 2) / 2,
         textYmm: Math.round(yMm * 2) / 2,
       }));
+    } else if (drag.target.type === "logo") {
+      setSettings((current) => ({
+        ...current,
+        logoXmm: Math.round(xMm * 2) / 2,
+        logoYmm: Math.round(yMm * 2) / 2,
+      }));
     } else {
       setSettings((current) => ({
         ...current,
@@ -592,6 +627,7 @@ export default function Home() {
     designMode,
     customText,
     customLinePositions,
+    showBrandLogo: designMode === "custom" && showBrandLogo,
     codeType,
     qrData,
     quantity,
@@ -607,6 +643,9 @@ export default function Home() {
     "--text-left": `${(settings.textXmm / settings.labelWidthMm) * 100}%`,
     "--text-top": `${(settings.textYmm / settings.labelHeightMm) * 100}%`,
     "--text-size": `${(settings.textSize / labelWidthDots) * 100}cqw`,
+    "--logo-left": `${(settings.logoXmm / settings.labelWidthMm) * 100}%`,
+    "--logo-top": `${(settings.logoYmm / settings.labelHeightMm) * 100}%`,
+    "--logo-size": `${(settings.logoSize / labelWidthDots) * 100}cqw`,
     "--qr-left": `${(settings.qrXmm / settings.labelWidthMm) * 100}%`,
     "--qr-top": `${(settings.qrYmm / settings.labelHeightMm) * 100}%`,
     "--qr-width": `${codePreviewWidth}%`,
@@ -667,6 +706,7 @@ export default function Home() {
       setSelectedLineIndex(0);
       setCustomQr("CUSTOM-001");
       setCustomCodeType("qr");
+      setShowBrandLogo(false);
       setNotice(null);
       return;
     }
@@ -824,7 +864,7 @@ export default function Home() {
                     <div>
                       <span>Ready-to-use preset</span>
                       <h4 id="gold-template-title">Gold Tag</h4>
-                      <p>QR with purity, weight and item length.</p>
+                      <p>AnyGold logo and QR with purity, weight and item length.</p>
                     </div>
                     <span className="template-badge">70 × 35 mm</span>
                   </div>
@@ -832,7 +872,7 @@ export default function Home() {
                   <div className="gold-template-body">
                     <div className="gold-tag-mini-preview" aria-hidden="true">
                       <div>
-                        <strong>ANYGOLD</strong>
+                        <strong className="gold-tag-wordmark">AnyGold</strong>
                         <span>PURITY {goldTagDetails.purity || "916"}</span>
                         <span>WEIGHT {goldTagDetails.weight || "20.00"}G</span>
                         <span>LENGTH {goldTagDetails.length || "10"}CM</span>
@@ -903,6 +943,20 @@ export default function Home() {
                     <span aria-hidden="true">→</span>
                   </button>
                 </section>
+
+                <label className="print-logo-option">
+                  <input
+                    type="checkbox"
+                    checked={showBrandLogo}
+                    onChange={(event) => setShowBrandLogo(event.target.checked)}
+                  />
+                  <span className="print-logo-option-mark" aria-hidden="true">AG</span>
+                  <span>
+                    <strong>Print AnyGold logo</strong>
+                    <small>Add the AnyGold wordmark to the physical tag.</small>
+                  </span>
+                  <span className="print-logo-option-state">{showBrandLogo ? "On" : "Off"}</span>
+                </label>
 
                 <div className="code-type-selector notranslate" translate="no">
                   <div className="code-type-heading">
@@ -1091,6 +1145,42 @@ export default function Home() {
                   />
                 </fieldset>
 
+                {designMode === "custom" && showBrandLogo && (
+                  <fieldset className="settings-group logo-settings-group">
+                    <legend>AnyGold logo</legend>
+                    <SettingControl
+                      id="logo-x"
+                      label="Left ↔ right"
+                      value={settings.logoXmm}
+                      minimum={0}
+                      maximum={settings.labelWidthMm}
+                      step={0.5}
+                      unit="mm"
+                      onChange={(value) => updateSetting("logoXmm", value)}
+                    />
+                    <SettingControl
+                      id="logo-y"
+                      label="Up ↕ down"
+                      value={settings.logoYmm}
+                      minimum={0}
+                      maximum={settings.labelHeightMm}
+                      step={0.5}
+                      unit="mm"
+                      onChange={(value) => updateSetting("logoYmm", value)}
+                    />
+                    <SettingControl
+                      id="logo-size"
+                      label="Logo size"
+                      value={settings.logoSize}
+                      minimum={18}
+                      maximum={60}
+                      step={1}
+                      unit="dot"
+                      onChange={(value) => updateSetting("logoSize", value)}
+                    />
+                  </fieldset>
+                )}
+
                 <fieldset className="settings-group">
                   <legend>Code</legend>
                   <SettingControl
@@ -1217,9 +1307,24 @@ export default function Home() {
 
               <div className="label-stage">
                 <div className="drag-hint">
-                  {designMode === "custom" ? "Drag each line or code" : "Drag text or code to move"}
+                  {designMode === "custom" ? "Drag each line, logo or code" : "Drag text or code to move"}
                 </div>
                 <div className="label-paper" style={labelPreviewStyle} ref={labelPaperRef}>
+                  {designMode === "custom" && showBrandLogo && (
+                    <div
+                      className="print-brand-logo draggable-item"
+                      role="button"
+                      tabIndex={0}
+                      aria-label="Move AnyGold logo"
+                      title="Drag to reposition the AnyGold logo"
+                      onPointerDown={(event) => startPreviewDrag({ type: "logo" }, event)}
+                      onPointerMove={movePreviewDrag}
+                      onPointerUp={endPreviewDrag}
+                      onPointerCancel={endPreviewDrag}
+                    >
+                      AnyGold
+                    </div>
+                  )}
                   {designMode === "custom" ? (
                     (printLineItems.length
                       ? printLineItems
