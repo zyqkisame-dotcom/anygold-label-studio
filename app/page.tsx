@@ -14,7 +14,7 @@ type PrinterState = "checking" | "online" | "offline";
 type Notice = { tone: "success" | "error"; message: string } | null;
 type DesignMode = "standard" | "custom";
 type CodeType = "qr" | "code128" | "ean13" | "none";
-type BrandLogoType = "mark" | "full" | "split";
+type BrandLogoType = "mark" | "full" | "wordmark";
 type TextPosition = { xMm: number; yMm: number };
 type GoldTagDetails = { purity: string; weight: string; length: string };
 type DragTarget =
@@ -241,7 +241,7 @@ function buildZpl(fields: {
   customText: string;
   customLinePositions: TextPosition[];
   showBrandLogo: boolean;
-  brandLogoType: BrandLogoType;
+  brandLogoTypes: BrandLogoType[];
   codeType: CodeType;
   qrData: string;
   quantity: number;
@@ -305,16 +305,19 @@ function buildZpl(fields: {
       : fields.codeType === "ean13"
         ? `^FO${qrX},${qrY}^BY${moduleWidth},2,${barcodeHeight}^BEN,${barcodeHeight},Y,N^FD${codeData}^FS`
         : `^FO${qrX},${qrY}^BQN,2,${qrSize}^FDLA,${codeData}^FS`;
-  const logoCommand = !fields.showBrandLogo
-    ? ""
-    : fields.brandLogoType === "mark"
-      ? buildAnyGoldMarkGraphic(markX, markY, markSize)
-      : fields.brandLogoType === "full"
-        ? buildAnyGoldFullGraphic(fullLogoX, fullLogoY, fullLogoWidth)
-        : [
-            buildAnyGoldMarkGraphic(markX, markY, markSize),
-            `^FO${logoX},${logoY}^A0N,${logoHeight},${logoWidth}^FDAnyGold^FS`,
-          ].join("\r\n");
+  const logoCommands = fields.showBrandLogo
+    ? [
+        fields.brandLogoTypes.includes("mark")
+          ? buildAnyGoldMarkGraphic(markX, markY, markSize)
+          : "",
+        fields.brandLogoTypes.includes("full")
+          ? buildAnyGoldFullGraphic(fullLogoX, fullLogoY, fullLogoWidth)
+          : "",
+        fields.brandLogoTypes.includes("wordmark")
+          ? `^FO${logoX},${logoY}^A0N,${logoHeight},${logoWidth}^FDAnyGold^FS`
+          : "",
+      ].filter(Boolean).join("\r\n")
+    : "";
 
   return [
     `~SD${darkness.toString().padStart(2, "0")}`,
@@ -326,7 +329,7 @@ function buildZpl(fields: {
     "^LS0",
     "^MNY",
     `^PR${speed}`,
-    logoCommand,
+    logoCommands,
     textCommands,
     codeCommand,
     `^PQ${Math.max(1, Math.min(100, fields.quantity))},0,1,Y`,
@@ -352,7 +355,7 @@ export default function Home() {
   const [customQr, setCustomQr] = useState("CUSTOM-001");
   const [customCodeType, setCustomCodeType] = useState<CodeType>("qr");
   const [showBrandLogo, setShowBrandLogo] = useState(false);
-  const [brandLogoType, setBrandLogoType] = useState<BrandLogoType>("split");
+  const [brandLogoTypes, setBrandLogoTypes] = useState<BrandLogoType[]>(["mark", "wordmark"]);
   const [goldTagDetails, setGoldTagDetails] = useState<GoldTagDetails>({
     purity: "916",
     weight: "20.00",
@@ -550,8 +553,16 @@ export default function Home() {
         if (typeof design.customText === "string") setCustomText(design.customText);
         if (typeof design.customQr === "string") setCustomQr(design.customQr);
         if (typeof design.showBrandLogo === "boolean") setShowBrandLogo(design.showBrandLogo);
-        if (["mark", "full", "split"].includes(design.brandLogoType)) {
-          setBrandLogoType(design.brandLogoType);
+        const validLogoTypes: BrandLogoType[] = ["mark", "full", "wordmark"];
+        if (Array.isArray(design.brandLogoTypes)) {
+          const storedTypes = design.brandLogoTypes
+            .filter((type: unknown): type is BrandLogoType => validLogoTypes.includes(type as BrandLogoType))
+            .slice(0, 2);
+          if (storedTypes.length) setBrandLogoTypes(storedTypes);
+        } else if (design.brandLogoType === "split") {
+          setBrandLogoTypes(["mark", "wordmark"]);
+        } else if (validLogoTypes.includes(design.brandLogoType)) {
+          setBrandLogoTypes([design.brandLogoType]);
         }
         if (Array.isArray(design.customLinePositions)) {
           setCustomLinePositions(
@@ -588,10 +599,10 @@ export default function Home() {
         customCodeType,
         customLinePositions,
         showBrandLogo,
-        brandLogoType,
+        brandLogoTypes,
       }),
     );
-  }, [brandLogoType, customCodeType, customLinePositions, customQr, customText, designMode, designStorageReady, showBrandLogo]);
+  }, [brandLogoTypes, customCodeType, customLinePositions, customQr, customText, designMode, designStorageReady, showBrandLogo]);
 
   useEffect(() => {
     if (designMode !== "custom") return;
@@ -621,6 +632,26 @@ export default function Home() {
     }
   }
 
+  function toggleBrandLogoType(type: BrandLogoType) {
+    if (brandLogoTypes.includes(type)) {
+      if (brandLogoTypes.length === 1) {
+        setNotice({ tone: "error", message: "Keep at least one logo selected." });
+        return;
+      }
+      setBrandLogoTypes(brandLogoTypes.filter((selected) => selected !== type));
+      setNotice(null);
+      return;
+    }
+
+    if (brandLogoTypes.length >= 2) {
+      setNotice({ tone: "error", message: "You can select a maximum of two logos." });
+      return;
+    }
+
+    setBrandLogoTypes([...brandLogoTypes, type]);
+    setNotice(null);
+  }
+
   function applyGoldTagPreset() {
     const purity = goldTagDetails.purity.trim() || "916";
     const weight = goldTagDetails.weight.trim() || "20.00";
@@ -635,7 +666,7 @@ export default function Home() {
     setCustomLinePositions(GOLD_TAG_LINE_POSITIONS);
     setSelectedLineIndex(0);
     setShowBrandLogo(true);
-    setBrandLogoType("full");
+    setBrandLogoTypes(["full"]);
     setCustomCodeType("qr");
     setCustomQr(`ANYGOLD-${purity}-${weight}G-${length}CM`);
     setSettings((current) => ({
@@ -813,7 +844,7 @@ export default function Home() {
     customText,
     customLinePositions,
     showBrandLogo: designMode === "custom" && showBrandLogo,
-    brandLogoType,
+    brandLogoTypes,
     codeType,
     qrData,
     quantity,
@@ -899,7 +930,7 @@ export default function Home() {
       setCustomQr("CUSTOM-001");
       setCustomCodeType("qr");
       setShowBrandLogo(false);
-      setBrandLogoType("split");
+      setBrandLogoTypes(["mark", "wordmark"]);
       setNotice(null);
       return;
     }
@@ -1156,16 +1187,19 @@ export default function Home() {
                 {showBrandLogo && (
                   <section className="brand-logo-selector" aria-labelledby="brand-logo-title">
                     <div className="brand-logo-heading">
-                      <strong id="brand-logo-title">Choose logo</strong>
-                      <small>Select one style for this tag.</small>
+                      <span>
+                        <strong id="brand-logo-title">Choose logos</strong>
+                        <small>Select up to two styles for this tag.</small>
+                      </span>
+                      <b>{brandLogoTypes.length}/2 selected</b>
                     </div>
-                    <div className="brand-logo-options" role="radiogroup" aria-label="AnyGold logo style">
+                    <div className="brand-logo-options" role="group" aria-label="AnyGold logo styles">
                       <button
                         type="button"
-                        role="radio"
-                        aria-checked={brandLogoType === "mark"}
-                        className={brandLogoType === "mark" ? "active" : ""}
-                        onClick={() => setBrandLogoType("mark")}
+                        role="checkbox"
+                        aria-checked={brandLogoTypes.includes("mark")}
+                        className={brandLogoTypes.includes("mark") ? "active" : ""}
+                        onClick={() => toggleBrandLogoType("mark")}
                       >
                         <span className="brand-choice-preview mark" aria-hidden="true">
                           <img src="/anygold-a-choice.png" alt="" />
@@ -1174,10 +1208,10 @@ export default function Home() {
                       </button>
                       <button
                         type="button"
-                        role="radio"
-                        aria-checked={brandLogoType === "full"}
-                        className={brandLogoType === "full" ? "active" : ""}
-                        onClick={() => setBrandLogoType("full")}
+                        role="checkbox"
+                        aria-checked={brandLogoTypes.includes("full")}
+                        className={brandLogoTypes.includes("full") ? "active" : ""}
+                        onClick={() => toggleBrandLogoType("full")}
                       >
                         <span className="brand-choice-preview full" aria-hidden="true">
                           <img src="/anygold-full-logo.png" alt="" />
@@ -1186,16 +1220,15 @@ export default function Home() {
                       </button>
                       <button
                         type="button"
-                        role="radio"
-                        aria-checked={brandLogoType === "split"}
-                        className={brandLogoType === "split" ? "active" : ""}
-                        onClick={() => setBrandLogoType("split")}
+                        role="checkbox"
+                        aria-checked={brandLogoTypes.includes("wordmark")}
+                        className={brandLogoTypes.includes("wordmark") ? "active" : ""}
+                        onClick={() => toggleBrandLogoType("wordmark")}
                       >
-                        <span className="brand-choice-preview split" aria-hidden="true">
-                          <img src="/anygold-a-choice.png" alt="" />
+                        <span className="brand-choice-preview wordmark" aria-hidden="true">
                           <b>AnyGold</b>
                         </span>
-                        <span><strong>Separate</strong><small>Adjust both parts</small></span>
+                        <span><strong>AnyGold Text</strong><small>Wordmark only</small></span>
                       </button>
                     </div>
                   </section>
@@ -1388,7 +1421,7 @@ export default function Home() {
                   />
                 </fieldset>
 
-                {designMode === "custom" && showBrandLogo && (brandLogoType === "mark" || brandLogoType === "split") && (
+                {designMode === "custom" && showBrandLogo && brandLogoTypes.includes("mark") && (
                   <fieldset className="settings-group logo-settings-group">
                     <legend>A logo</legend>
                     <SettingControl
@@ -1424,7 +1457,7 @@ export default function Home() {
                   </fieldset>
                 )}
 
-                {designMode === "custom" && showBrandLogo && brandLogoType === "split" && (
+                {designMode === "custom" && showBrandLogo && brandLogoTypes.includes("wordmark") && (
                   <fieldset className="settings-group logo-settings-group">
                     <legend>AnyGold text</legend>
                     <SettingControl
@@ -1460,7 +1493,7 @@ export default function Home() {
                   </fieldset>
                 )}
 
-                {designMode === "custom" && showBrandLogo && brandLogoType === "full" && (
+                {designMode === "custom" && showBrandLogo && brandLogoTypes.includes("full") && (
                   <fieldset className="settings-group logo-settings-group full-logo-settings-group">
                     <legend>Full AnyGold logo</legend>
                     <SettingControl
@@ -1625,7 +1658,7 @@ export default function Home() {
                   {designMode === "custom" ? "Drag each line, A logo, AnyGold text or code" : "Drag text or code to move"}
                 </div>
                 <div className="label-paper" style={labelPreviewStyle} ref={labelPaperRef}>
-                  {designMode === "custom" && showBrandLogo && (brandLogoType === "mark" || brandLogoType === "split") && (
+                  {designMode === "custom" && showBrandLogo && brandLogoTypes.includes("mark") && (
                     <div
                       className="print-brand-mark draggable-item"
                       role="button"
@@ -1640,7 +1673,7 @@ export default function Home() {
                       <img src="/anygold-a-choice.png" alt="" aria-hidden="true" />
                     </div>
                   )}
-                  {designMode === "custom" && showBrandLogo && brandLogoType === "split" && (
+                  {designMode === "custom" && showBrandLogo && brandLogoTypes.includes("wordmark") && (
                     <div
                       className="print-brand-wordmark draggable-item"
                       role="button"
@@ -1655,7 +1688,7 @@ export default function Home() {
                       AnyGold
                     </div>
                   )}
-                  {designMode === "custom" && showBrandLogo && brandLogoType === "full" && (
+                  {designMode === "custom" && showBrandLogo && brandLogoTypes.includes("full") && (
                     <div
                       className="print-full-brand-logo draggable-item"
                       role="button"

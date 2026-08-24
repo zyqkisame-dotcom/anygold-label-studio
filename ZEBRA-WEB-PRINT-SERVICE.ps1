@@ -251,15 +251,31 @@ function New-LabelZpl {
     $zpl.Add("^PR$speed")
 
     if ([bool]$Data.showBrandLogo) {
-        $brandLogoType = [string]$Data.brandLogoType
-        if ($brandLogoType -eq 'mark') {
+        $brandLogoTypes = [System.Collections.Generic.List[string]]::new()
+        foreach ($logoType in @($Data.brandLogoTypes)) {
+            $value = [string]$logoType
+            if ($value -in @('mark', 'full', 'wordmark') -and -not $brandLogoTypes.Contains($value)) {
+                $brandLogoTypes.Add($value)
+            }
+        }
+        if ($brandLogoTypes.Count -eq 0) {
+            $legacyLogoType = [string]$Data.brandLogoType
+            if ($legacyLogoType -eq 'mark' -or $legacyLogoType -eq 'full') {
+                $brandLogoTypes.Add($legacyLogoType)
+            }
+            else {
+                $brandLogoTypes.Add('mark')
+                $brandLogoTypes.Add('wordmark')
+            }
+        }
+
+        if ($brandLogoTypes.Contains('mark')) {
             $zpl.Add((New-AnyGoldMarkGraphic -X $markX -Y $markY -RequestedSize $markSize))
         }
-        elseif ($brandLogoType -eq 'full') {
+        if ($brandLogoTypes.Contains('full')) {
             $zpl.Add((New-AnyGoldFullGraphic -X $fullLogoX -Y $fullLogoY -RequestedWidth $fullLogoWidth))
         }
-        else {
-            $zpl.Add((New-AnyGoldMarkGraphic -X $markX -Y $markY -RequestedSize $markSize))
+        if ($brandLogoTypes.Contains('wordmark')) {
             $zpl.Add("^FO$logoX,$logoY^A0N,$logoHeight,$logoWidth^FDAnyGold^FS")
         }
     }

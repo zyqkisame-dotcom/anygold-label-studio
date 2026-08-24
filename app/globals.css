@@ -773,6 +773,13 @@ h1 {
 }
 
 .brand-logo-heading {
+  align-items: center;
+  display: grid;
+  gap: 3px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.brand-logo-heading > span {
   display: grid;
   gap: 3px;
 }
@@ -785,6 +792,14 @@ h1 {
 .brand-logo-heading small {
   color: var(--muted);
   font-size: 10px;
+}
+
+.brand-logo-heading > b {
+  background: var(--soft);
+  border-radius: 999px;
+  color: var(--forest);
+  font-size: 9px;
+  padding: 6px 8px;
 }
 
 .brand-logo-options {
@@ -861,20 +876,10 @@ h1 {
   object-fit: contain;
 }
 
-.brand-choice-preview.split {
-  gap: 5px;
-}
-
-.brand-choice-preview.split img {
-  height: 25px;
-  object-fit: contain;
-  width: 25px;
-}
-
-.brand-choice-preview.split b {
+.brand-choice-preview.wordmark b {
   color: #111;
   font-family: Arial, sans-serif;
-  font-size: 12px;
+  font-size: 17px;
   letter-spacing: -0.05em;
 }
 
